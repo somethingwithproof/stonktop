@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2024-12-16
+## [0.1.1] - 2025-12-16
+
+### Fixed
+- Switch to Yahoo Finance v8 chart API after v7 quote API was deprecated
+- Parallel fetching for multiple symbols to improve performance
+
+### Changed
+- Updated dependencies: crossterm 0.29, toml 0.9, dirs 6.0
+- Updated GitHub Actions: checkout v6, cache v5
+
+## [0.1.0] - 2025-12-16
 
 ### Added
 - Initial release
@@ -32,5 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - macOS (x86_64, Apple Silicon)
 - Windows (x86_64, aarch64)
 
-[Unreleased]: https://github.com/thomasvincent/stonktop/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/thomasvincent/stonktop/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/thomasvincent/stonktop/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thomasvincent/stonktop/releases/tag/v0.1.0
