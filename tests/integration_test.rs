@@ -4,8 +4,7 @@ use std::process::Command;
 
 /// Get the path to the stonktop binary.
 fn stonktop_bin() -> Command {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_stonktop"));
-    cmd
+    Command::new(env!("CARGO_BIN_EXE_stonktop"))
 }
 
 #[test]
@@ -65,8 +64,6 @@ fn test_invalid_delay() {
 #[test]
 #[ignore]
 fn test_batch_mode_with_network() {
-    use std::time::Duration;
-
     let child = stonktop_bin()
         .args(["-s", "AAPL", "-b", "-n", "1", "--timeout", "5"])
         .stdout(std::process::Stdio::piped())
