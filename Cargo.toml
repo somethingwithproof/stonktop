@@ -2,13 +2,26 @@
 name = "stonktop"
 version = "0.1.0"
 edition = "2021"
-authors = ["Thomas Vincent"]
+rust-version = "1.70"
+authors = ["Thomas Vincent <thomasvincent@gmail.com>"]
 description = "A top-like terminal UI for monitoring stock and cryptocurrency prices"
-license = "MIT"
+documentation = "https://docs.rs/stonktop"
+homepage = "https://github.com/thomasvincent/stonktop"
 repository = "https://github.com/thomasvincent/stonktop"
+license = "MIT"
 keywords = ["stocks", "cryptocurrency", "terminal", "tui", "finance"]
 categories = ["command-line-utilities", "finance"]
 readme = "README.md"
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+]
+
+[badges]
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 # TUI
@@ -47,7 +60,18 @@ num-format = "0.4"
 lto = true
 codegen-units = 1
 strip = true
+opt-level = 3
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+strip = false
 
 [[bin]]
 name = "stonktop"
 path = "src/main.rs"
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/stonktop-{ target }.tar.gz"
+bin-dir = "stonktop-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"

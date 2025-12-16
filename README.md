@@ -2,8 +2,11 @@
 
 A top-like terminal UI for monitoring stock and cryptocurrency prices in real-time.
 
+[![Crates.io](https://img.shields.io/crates/v/stonktop.svg)](https://crates.io/crates/stonktop)
+[![Downloads](https://img.shields.io/crates/d/stonktop.svg)](https://crates.io/crates/stonktop)
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=flat&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/thomasvincent/stonktop/workflows/CI/badge.svg)](https://github.com/thomasvincent/stonktop/actions)
 
 ## Features
 
@@ -37,6 +40,29 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Installation
 
+### From crates.io (Recommended)
+
+```bash
+cargo install stonktop
+```
+
+### Using cargo-binstall
+
+If you have [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) installed, you can install pre-built binaries:
+
+```bash
+cargo binstall stonktop
+```
+
+### Pre-built Binaries
+
+Download pre-built binaries from the [Releases](https://github.com/thomasvincent/stonktop/releases) page.
+
+Available platforms:
+- Linux (x86_64, aarch64, musl)
+- macOS (Intel, Apple Silicon)
+- Windows (x86_64, aarch64)
+
 ### From Source
 
 ```bash
@@ -47,9 +73,11 @@ cargo build --release
 
 The binary will be at `target/release/stonktop`.
 
-### Using Cargo
+### For Development
 
 ```bash
+git clone https://github.com/thomasvincent/stonktop.git
+cd stonktop
 cargo install --path .
 ```
 
