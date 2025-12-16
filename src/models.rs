@@ -1,9 +1,12 @@
 //! Data models for stock and cryptocurrency quotes.
+//!
+//! Structs that hold the numbers you'll obsessively refresh.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Represents a financial quote for a stock or cryptocurrency.
+/// Contains all the numbers you need to feel emotions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quote {
     /// Ticker symbol (e.g., "AAPL", "BTC-USD")

@@ -38,9 +38,7 @@ fn test_version_flag() {
 
 #[test]
 fn test_no_symbols_error() {
-    let output = stonktop_bin()
-        .output()
-        .expect("Failed to execute command");
+    let output = stonktop_bin().output().expect("Failed to execute command");
 
     // Should exit with error when no symbols provided
     assert!(!output.status.success());

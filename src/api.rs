@@ -1,4 +1,6 @@
 //! Yahoo Finance API client for fetching stock and cryptocurrency quotes.
+//!
+//! Because checking your portfolio every 5 seconds is totally healthy behavior.
 
 use crate::models::{MarketState, Quote, QuoteType};
 use anyhow::{Context, Result};
@@ -8,10 +10,14 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Duration;
 
+/// The magical endpoint where dreams are made and destroyed.
 const YAHOO_FINANCE_URL: &str = "https://query1.finance.yahoo.com/v7/finance/quote";
+
+/// Pretending to be a real browser because Yahoo has trust issues.
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
 /// Yahoo Finance API client.
+/// Your gateway to financial anxiety delivered in JSON format.
 pub struct YahooFinanceClient {
     client: Client,
     timeout: Duration,
@@ -50,10 +56,7 @@ impl YahooFinanceClient {
             .context("Failed to fetch quotes from Yahoo Finance")?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Yahoo Finance API returned error: {}",
-                response.status()
-            );
+            anyhow::bail!("Yahoo Finance API returned error: {}", response.status());
         }
 
         let data: YahooResponse = response
@@ -72,6 +75,8 @@ impl YahooFinanceClient {
     }
 
     /// Fetch a single quote.
+    /// For when you only need to be disappointed by one stock at a time.
+    #[allow(dead_code)] // Reserved for future regret-checking functionality
     pub async fn get_quote(&self, symbol: &str) -> Result<Quote> {
         let quotes = self.get_quotes(&[symbol.to_string()]).await?;
         quotes
@@ -202,10 +207,11 @@ fn parse_market_state(s: Option<&str>) -> MarketState {
 }
 
 /// Symbol shortcuts for common cryptocurrencies.
+/// Because typing "-USD" is too much work for crypto bros.
 pub fn expand_symbol(symbol: &str) -> String {
     // Handle shorthand crypto symbols like "BTC.X" -> "BTC-USD"
-    if symbol.ends_with(".X") {
-        let base = &symbol[..symbol.len() - 2];
+    // The .X suffix is like X marks the spot, but for losing money
+    if let Some(base) = symbol.strip_suffix(".X") {
         return format!("{}-USD", base);
     }
 

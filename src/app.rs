@@ -1,4 +1,6 @@
 //! Application state and logic.
+//!
+//! Where we keep track of your hopes, dreams, and unrealized losses.
 
 use crate::api::{expand_symbol, YahooFinanceClient};
 use crate::cli::Args;
@@ -9,6 +11,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 /// Application state.
+/// Think of it as your financial life, but with better error handling.
 pub struct App {
     /// Current quotes
     pub quotes: Vec<Quote>,
@@ -36,7 +39,8 @@ pub struct App {
     pub error: Option<String>,
     /// Selected row index
     pub selected: usize,
-    /// Scroll offset
+    /// Scroll offset for when you have more regrets than fit on screen
+    #[allow(dead_code)] // Future scrolling feature - coming soon to a terminal near you
     pub scroll_offset: usize,
     /// Show help overlay
     pub show_help: bool,
@@ -52,7 +56,8 @@ pub struct App {
     pub active_group: usize,
     /// Group names
     pub groups: Vec<String>,
-    /// Verbose mode
+    /// Verbose mode - for when you want MORE numbers to stress about
+    #[allow(dead_code)] // TODO: Add more verbosity, because anxiety needs details
     pub verbose: bool,
 }
 
@@ -60,10 +65,7 @@ impl App {
     /// Create a new application from CLI args and config.
     pub fn new(args: &Args, config: &Config) -> Result<Self> {
         // Merge symbols from args and config
-        let mut symbols: Vec<String> = args
-            .symbols
-            .clone()
-            .unwrap_or_else(|| config.all_symbols());
+        let mut symbols: Vec<String> = args.symbols.clone().unwrap_or_else(|| config.all_symbols());
 
         // Expand symbol shortcuts
         symbols = symbols.into_iter().map(|s| expand_symbol(&s)).collect();
@@ -152,8 +154,14 @@ impl App {
             let cmp = match self.sort_order {
                 SortOrder::Symbol => a.symbol.cmp(&b.symbol),
                 SortOrder::Name => a.name.cmp(&b.name),
-                SortOrder::Price => a.price.partial_cmp(&b.price).unwrap_or(std::cmp::Ordering::Equal),
-                SortOrder::Change => a.change.partial_cmp(&b.change).unwrap_or(std::cmp::Ordering::Equal),
+                SortOrder::Price => a
+                    .price
+                    .partial_cmp(&b.price)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                SortOrder::Change => a
+                    .change
+                    .partial_cmp(&b.change)
+                    .unwrap_or(std::cmp::Ordering::Equal),
                 SortOrder::ChangePercent => a
                     .change_percent
                     .partial_cmp(&b.change_percent)
@@ -273,15 +281,13 @@ impl App {
     pub fn today_portfolio_change(&self) -> f64 {
         self.quotes
             .iter()
-            .filter_map(|q| {
-                self.holdings
-                    .get(&q.symbol)
-                    .map(|h| h.quantity * q.change)
-            })
+            .filter_map(|q| self.holdings.get(&q.symbol).map(|h| h.quantity * q.change))
             .sum()
     }
 
     /// Add a symbol to watch.
+    /// For when FOMO hits and you need to track one more meme stock.
+    #[allow(dead_code)] // Interactive symbol adding - coming in v2.0 (probably)
     pub fn add_symbol(&mut self, symbol: &str) {
         let expanded = expand_symbol(symbol);
         if !self.symbols.contains(&expanded) {
@@ -290,6 +296,8 @@ impl App {
     }
 
     /// Remove a symbol from watch.
+    /// Denial is the first stage of grief. Removing it from your watchlist is the second.
+    #[allow(dead_code)] // Interactive symbol removal - for those who can't handle the truth
     pub fn remove_symbol(&mut self, symbol: &str) {
         let expanded = expand_symbol(symbol);
         self.symbols.retain(|s| s != &expanded);
@@ -300,6 +308,8 @@ impl App {
     }
 
     /// Get the currently selected quote.
+    /// Returns the quote you're currently staring at in disbelief.
+    #[allow(dead_code)] // Used by future detail view feature
     pub fn selected_quote(&self) -> Option<&Quote> {
         self.quotes.get(self.selected)
     }

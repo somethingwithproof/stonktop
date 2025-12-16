@@ -1,4 +1,6 @@
 //! Configuration file handling with TOML support.
+//!
+//! Because hardcoding your portfolio would be too easy.
 
 use crate::models::Holding;
 use anyhow::{Context, Result};
@@ -8,6 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Application configuration loaded from TOML file.
+/// Where you define which assets will keep you up at night.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// General settings
@@ -230,14 +233,16 @@ impl Config {
     }
 
     /// Save configuration to file.
+    /// For when you finally decide to commit to your investment strategy.
+    #[allow(dead_code)] // Config export feature - because backup plans are underrated
     pub fn save(&self, path: &PathBuf) -> Result<()> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create config directory: {}", parent.display())
+            })?;
         }
 
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize configuration")?;
+        let content = toml::to_string_pretty(self).context("Failed to serialize configuration")?;
 
         fs::write(path, content)
             .with_context(|| format!("Failed to write config file: {}", path.display()))?;

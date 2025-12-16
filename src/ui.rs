@@ -1,4 +1,7 @@
 //! Terminal user interface with ratatui.
+//!
+//! Making financial data look pretty since 2024.
+//! (The data itself? Still ugly. That's not our fault.)
 
 use crate::app::App;
 use crate::models::SortOrder;
@@ -7,9 +10,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap,
-    },
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
     Frame,
 };
 
@@ -92,25 +93,43 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
 
         vec![
             Line::from(vec![
-                Span::styled("STONKTOP ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "STONKTOP ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("- Portfolio View"),
             ]),
             Line::from(vec![
                 Span::raw(format!("Value: ${:.2}  ", total_value)),
                 Span::styled(
                     format!("P/L: {:+.2} ({:+.2}%)  ", total_pnl, pnl_pct),
-                    Style::default().fg(if total_pnl >= 0.0 { colors.gain } else { colors.loss }),
+                    Style::default().fg(if total_pnl >= 0.0 {
+                        colors.gain
+                    } else {
+                        colors.loss
+                    }),
                 ),
                 Span::styled(
                     format!("Today: {:+.2}", today_change),
-                    Style::default().fg(if today_change >= 0.0 { colors.gain } else { colors.loss }),
+                    Style::default().fg(if today_change >= 0.0 {
+                        colors.gain
+                    } else {
+                        colors.loss
+                    }),
                 ),
             ]),
         ]
     } else {
         vec![
             Line::from(vec![
-                Span::styled("STONKTOP ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "STONKTOP ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(format!("- {} symbols", app.quotes.len())),
             ]),
             Line::from(vec![
@@ -124,8 +143,11 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
         ]
     };
 
-    let header = Paragraph::new(header_text)
-        .block(Block::default().borders(Borders::BOTTOM).border_style(Style::default().fg(colors.border)));
+    let header = Paragraph::new(header_text).block(
+        Block::default()
+            .borders(Borders::BOTTOM)
+            .border_style(Style::default().fg(colors.border)),
+    );
 
     frame.render_widget(header, area);
 }
@@ -241,7 +263,11 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
         let today = holding.quantity * quote.change;
 
         let pnl_color = if pnl >= 0.0 { colors.gain } else { colors.loss };
-        let today_color = if today >= 0.0 { colors.gain } else { colors.loss };
+        let today_color = if today >= 0.0 {
+            colors.gain
+        } else {
+            colors.loss
+        };
 
         let row_style = if is_selected {
             Style::default().bg(colors.selected_bg)
@@ -285,8 +311,13 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
 
 /// Render the footer with keybindings.
 fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
-    let mode = if app.show_holdings { "Holdings" } else { "Quotes" };
-    let sort_info = format!("{} {}",
+    let mode = if app.show_holdings {
+        "Holdings"
+    } else {
+        "Quotes"
+    };
+    let sort_info = format!(
+        "{} {}",
         app.sort_order.header(),
         match app.sort_direction {
             crate::models::SortDirection::Ascending => "▲",
@@ -307,11 +338,13 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
         Span::raw(":holdings "),
         Span::styled("f", Style::default().fg(Color::Yellow)),
         Span::raw(":fundamentals "),
-        Span::raw(format!("| {} | {} | Iter: {}", mode, sort_info, app.iteration)),
+        Span::raw(format!(
+            "| {} | {} | Iter: {}",
+            mode, sort_info, app.iteration
+        )),
     ]);
 
-    let footer_widget = Paragraph::new(footer)
-        .style(Style::default().bg(colors.header_bg));
+    let footer_widget = Paragraph::new(footer).style(Style::default().bg(colors.header_bg));
 
     frame.render_widget(footer_widget, area);
 }
@@ -405,12 +438,14 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 }
 
 /// Format price with appropriate precision.
+/// Penny stocks get more decimals because every fraction of a cent matters
+/// when you're hoping for that 10,000% gain.
 fn format_price(price: f64) -> String {
-    if price >= 1000.0 {
-        format!("${:.2}", price)
-    } else if price >= 1.0 {
+    if price >= 1.0 {
+        // Normal prices get normal formatting
         format!("${:.2}", price)
     } else {
+        // Penny stocks and shitcoins need more precision
         format!("${:.6}", price)
     }
 }
@@ -431,7 +466,9 @@ fn format_volume(volume: u64) -> String {
 /// Format market cap with suffixes.
 fn format_market_cap(market_cap: Option<u64>) -> String {
     match market_cap {
-        Some(cap) if cap >= 1_000_000_000_000 => format!("${:.2}T", cap as f64 / 1_000_000_000_000.0),
+        Some(cap) if cap >= 1_000_000_000_000 => {
+            format!("${:.2}T", cap as f64 / 1_000_000_000_000.0)
+        }
         Some(cap) if cap >= 1_000_000_000 => format!("${:.2}B", cap as f64 / 1_000_000_000.0),
         Some(cap) if cap >= 1_000_000 => format!("${:.2}M", cap as f64 / 1_000_000.0),
         Some(cap) => format!("${}", cap.to_formatted_string(&Locale::en)),

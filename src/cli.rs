@@ -1,9 +1,12 @@
 //! Command-line interface with top-like options.
+//!
+//! All the flags you need to customize your financial anxiety experience.
 
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
 /// A top-like terminal UI for monitoring stock and cryptocurrency prices.
+/// Like htop, but for watching numbers go down instead of CPU usage.
 ///
 /// Stonktop provides real-time quotes for stocks and cryptocurrencies
 /// with a familiar top-like interface. It supports watchlists, portfolio
@@ -145,11 +148,14 @@ pub enum ColorMode {
 
 impl Args {
     /// Parse command line arguments.
+    /// Where your journey to financial enlightenment begins.
     pub fn parse_args() -> Self {
         Args::parse()
     }
 
     /// Check if colors should be enabled.
+    /// Because red and green are the only colors that matter in finance.
+    #[allow(dead_code)] // Reserved for when we implement --no-feelings mode
     pub fn use_colors(&self) -> bool {
         match self.color {
             ColorMode::Always => true,
@@ -163,6 +169,8 @@ impl Args {
 }
 
 /// Check if stdout is a terminal.
+/// Spoiler: it probably is, unless you're piping your tears to /dev/null.
+#[allow(dead_code)] // Used by use_colors which is reserved for future features
 fn atty_check() -> bool {
     // Simple check - in production you might use the `atty` crate
     std::env::var("TERM").is_ok()

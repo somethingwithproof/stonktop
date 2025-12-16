@@ -1,4 +1,10 @@
 //! Stonktop - A top-like terminal UI for stock and crypto prices.
+//!
+//! "Stonks only go up" - Famous last words
+//!
+//! A terminal-based stock and cryptocurrency price monitor that brings
+//! the thrill of watching your portfolio fluctuate directly to your
+//! command line. Now you can lose money AND look like a hacker!
 
 mod api;
 mod app;
@@ -42,7 +48,10 @@ async fn main() -> Result<()> {
         eprintln!();
         eprintln!("Example: stonktop -s AAPL,GOOGL,BTC-USD");
         eprintln!();
-        eprintln!("Or create a config file at {:?}", Config::default_config_path());
+        eprintln!(
+            "Or create a config file at {:?}",
+            Config::default_config_path()
+        );
         eprintln!();
         eprintln!("Sample config:");
         eprintln!("{}", config::sample_config());
@@ -101,7 +110,10 @@ async fn run_interactive(app: &mut App) -> Result<()> {
 }
 
 /// Main application loop.
-async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
+async fn run_app(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+) -> Result<()> {
     let tick_rate = Duration::from_millis(100);
 
     loop {
