@@ -205,7 +205,7 @@ impl ChartResult {
             year_high: meta.fifty_two_week_high.unwrap_or(0.0),
             year_low: meta.fifty_two_week_low.unwrap_or(0.0),
             volume: meta.regular_market_volume.unwrap_or(0),
-            avg_volume: 0, // Not available in chart API meta
+            avg_volume: 0,    // Not available in chart API meta
             market_cap: None, // Not available in chart API meta
             currency: meta.currency.unwrap_or_else(|| "USD".to_string()),
             exchange: meta.exchange_name.unwrap_or_default(),
