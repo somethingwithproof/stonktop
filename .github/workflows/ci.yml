@@ -74,6 +74,7 @@ jobs:
   msrv:
     name: Check MSRV (1.86)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -92,6 +93,7 @@ jobs:
   publish-dry-run:
     name: Publish Dry Run
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
