@@ -102,7 +102,7 @@ jobs:
         run: cargo package --list
 
       - name: Verify publishable
-        run: cargo publish --dry-run
+        run: cargo publish --dry-run --allow-dirty
 
   # Security audit
   security:
