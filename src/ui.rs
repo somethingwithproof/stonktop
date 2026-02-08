@@ -480,8 +480,14 @@ fn format_market_cap(market_cap: Option<u64>) -> String {
 fn truncate_string(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
+    } else if max_len <= 3 {
+        ".".repeat(max_len)
     } else {
-        format!("{}...", &s[..max_len - 3])
+        let mut end = max_len.saturating_sub(3);
+        while !s.is_char_boundary(end) && end > 0 {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     }
 }
 

@@ -86,13 +86,16 @@ impl App {
 
         let client = YahooFinanceClient::new(args.timeout)?;
 
+        // Enforce minimum refresh interval of 1.0 second
+        let delay = if args.delay < 1.0 { 1.0 } else { args.delay };
+
         Ok(Self {
             quotes: Vec::new(),
             holdings,
             symbols,
             client,
             last_refresh: None,
-            refresh_interval: Duration::from_secs_f64(args.delay),
+            refresh_interval: Duration::from_secs_f64(delay),
             sort_order: args.sort.into(),
             sort_direction: if args.reverse {
                 SortDirection::Ascending

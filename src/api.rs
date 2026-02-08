@@ -17,6 +17,13 @@ const YAHOO_CHART_URL: &str = "https://query1.finance.yahoo.com/v8/finance/chart
 /// Pretending to be a real browser because Yahoo has trust issues.
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+/// Validate that a symbol contains only safe characters for URL construction.
+fn is_valid_symbol(symbol: &str) -> bool {
+    !symbol.is_empty()
+        && symbol.len() <= 20
+        && symbol.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '^')
+}
+
 /// Yahoo Finance API client.
 /// Your gateway to financial anxiety delivered in JSON format.
 pub struct YahooFinanceClient {
@@ -62,6 +69,11 @@ impl YahooFinanceClient {
 
     /// Fetch a single quote from the v8 chart API.
     async fn fetch_single_quote(&self, symbol: &str) -> Result<Quote> {
+        // Validate symbol before constructing URL to prevent injection
+        if !is_valid_symbol(symbol) {
+            anyhow::bail!("Invalid symbol: {}", symbol);
+        }
+
         // Symbol goes in the path, not as a query parameter
         let url = format!("{}/{}?interval=1d&range=1d", YAHOO_CHART_URL, symbol);
 
@@ -213,7 +225,7 @@ impl ChartResult {
             market_state: MarketState::Closed, // Would need separate call to determine
             timestamp: meta
                 .regular_market_time
-                .map(|t| Utc.timestamp_opt(t, 0).unwrap())
+                .and_then(|t| Utc.timestamp_opt(t, 0).single())
                 .unwrap_or_else(Utc::now),
         }
     }
