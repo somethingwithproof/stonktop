@@ -289,6 +289,94 @@ pub fn expand_symbol(symbol: &str) -> String {
 mod tests {
     use super::*;
 
+    // --- is_valid_symbol tests ---
+
+    #[test]
+    fn test_valid_symbol_standard_tickers() {
+        assert!(is_valid_symbol("AAPL"));
+        assert!(is_valid_symbol("GOOGL"));
+        assert!(is_valid_symbol("MSFT"));
+        assert!(is_valid_symbol("A")); // single char
+    }
+
+    #[test]
+    fn test_valid_symbol_with_hyphen() {
+        assert!(is_valid_symbol("BRK-B"));
+        assert!(is_valid_symbol("BTC-USD"));
+        assert!(is_valid_symbol("ETH-USD"));
+    }
+
+    #[test]
+    fn test_valid_symbol_with_dot() {
+        assert!(is_valid_symbol("BRK.B"));
+        assert!(is_valid_symbol("BTC.X"));
+    }
+
+    #[test]
+    fn test_valid_symbol_with_caret() {
+        assert!(is_valid_symbol("^GSPC"));
+        assert!(is_valid_symbol("^DJI"));
+        assert!(is_valid_symbol("^IXIC"));
+    }
+
+    #[test]
+    fn test_valid_symbol_numeric() {
+        assert!(is_valid_symbol("0700")); // Tencent on HKEX
+        assert!(is_valid_symbol("9988")); // Alibaba on HKEX
+    }
+
+    #[test]
+    fn test_valid_symbol_max_length() {
+        assert!(is_valid_symbol("ABCDEFGHIJKLMNOPQRST")); // exactly 20
+    }
+
+    #[test]
+    fn test_invalid_symbol_empty() {
+        assert!(!is_valid_symbol(""));
+    }
+
+    #[test]
+    fn test_invalid_symbol_too_long() {
+        assert!(!is_valid_symbol("ABCDEFGHIJKLMNOPQRSTU")); // 21 chars
+    }
+
+    #[test]
+    fn test_invalid_symbol_slash() {
+        assert!(!is_valid_symbol("AAPL/USD"));
+        assert!(!is_valid_symbol("../etc/passwd"));
+    }
+
+    #[test]
+    fn test_invalid_symbol_query_injection() {
+        assert!(!is_valid_symbol("AAPL?foo=bar"));
+        assert!(!is_valid_symbol("AAPL&extra=1"));
+    }
+
+    #[test]
+    fn test_invalid_symbol_url_encoding() {
+        assert!(!is_valid_symbol("AAPL%20"));
+        assert!(!is_valid_symbol("%2F%2F"));
+    }
+
+    #[test]
+    fn test_invalid_symbol_special_chars() {
+        assert!(!is_valid_symbol("AAPL!"));
+        assert!(!is_valid_symbol("AA@PL"));
+        assert!(!is_valid_symbol("AA#PL"));
+        assert!(!is_valid_symbol("AA$PL"));
+        assert!(!is_valid_symbol("AA PL")); // space
+        assert!(!is_valid_symbol("AA\tPL")); // tab
+        assert!(!is_valid_symbol("AA\nPL")); // newline
+    }
+
+    #[test]
+    fn test_invalid_symbol_unicode() {
+        assert!(!is_valid_symbol("A\u{0410}PL")); // Cyrillic A
+        assert!(!is_valid_symbol("AAPL\u{200B}")); // zero-width space
+    }
+
+    // --- expand_symbol tests ---
+
     #[test]
     fn test_expand_symbol_crypto_shorthand() {
         assert_eq!(expand_symbol("BTC.X"), "BTC-USD");
