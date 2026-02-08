@@ -21,7 +21,9 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 fn is_valid_symbol(symbol: &str) -> bool {
     !symbol.is_empty()
         && symbol.len() <= 20
-        && symbol.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '^')
+        && symbol
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '^')
 }
 
 /// Yahoo Finance API client.
