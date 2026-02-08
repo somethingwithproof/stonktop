@@ -1,33 +1,30 @@
-# Stonktop
+# CLAUDE.md
 
-## Purpose
-Top-like terminal UI for real-time stock and cryptocurrency price monitoring.
+TUI application for real-time stock and cryptocurrency price monitoring (top-like interface).
 
 ## Stack
 - Rust (edition 2021, MSRV 1.86)
-- TUI: ratatui + crossterm
-- Published on crates.io
+- ratatui (terminal UI)
+- crossterm (terminal backend)
+- tokio (async runtime)
 
 ## Build & Test
 ```bash
 cargo build --release
 cargo test
-cargo clippy --all-targets -- -D warnings -W clippy::pedantic
-cargo deny check
+cargo clippy -- -D warnings
+cargo fmt --check  # Required by CI
 ```
 
-## Structure
-- `src/` - application source
-- `tests/` - integration tests
-- `scripts/` - build/release scripts
+## Usage
+```bash
+stonktop -s AAPL,GOOGL,BTC-USD
+stonktop -s BTC,ETH -d 10    # 10s refresh
+stonktop -b                   # Batch mode
+```
 
-## Standards
-- `clippy` pedantic clean
-- `Result`/`Option` for all fallible operations
-- TOML configuration files
-- Conventional Commits: `type(scope): description`
-
-## Conventions
-- Keyboard controls mirror `top`/`htop`
-- Batch mode (`-b`) for scripting
-- Crypto shortcuts: `BTC.X` or `BTC` resolves to `BTC-USD`
+## Notes
+- Config: `~/.config/stonktop/config.toml`
+- Data source: Yahoo Finance API
+- Crypto shortcuts: `BTC` expands to `BTC-USD`
+- CI enforces `cargo fmt --check`
