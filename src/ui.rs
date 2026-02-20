@@ -476,19 +476,19 @@ fn format_market_cap(market_cap: Option<u64>) -> String {
     }
 }
 
-/// Truncate string to max length.
+/// Truncate string to max length, respecting UTF-8 char boundaries.
 fn truncate_string(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
-        s.to_string()
-    } else if max_len <= 3 {
-        ".".repeat(max_len)
-    } else {
-        let mut end = max_len.saturating_sub(3);
-        while !s.is_char_boundary(end) && end > 0 {
-            end -= 1;
-        }
-        format!("{}...", &s[..end])
+        return s.to_string();
     }
+    if max_len <= 3 {
+        return ".".repeat(max_len);
+    }
+    let end = s
+        .char_indices()
+        .nth(max_len - 3)
+        .map_or(s.len(), |(i, _)| i);
+    format!("{}...", &s[..end])
 }
 
 /// Render batch mode output (non-interactive).
