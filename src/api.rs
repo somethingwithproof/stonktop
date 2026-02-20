@@ -5,10 +5,9 @@
 use crate::models::{MarketState, Quote, QuoteType};
 use anyhow::{Context, Result};
 use chrono::{TimeZone, Utc};
-use futures::future::join_all;
+use futures_util::{stream, StreamExt};
 use reqwest::Client;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::time::Duration;
 
 /// The v8 chart API endpoint - the one that still works (for now).
@@ -55,16 +54,20 @@ impl YahooFinanceClient {
             return Ok(Vec::new());
         }
 
-        // Fetch all symbols in parallel
-        let futures: Vec<_> = symbols
-            .iter()
-            .map(|symbol| self.fetch_single_quote(symbol))
-            .collect();
+        // Fetch symbols with bounded concurrency to avoid hammering Yahoo's rate limits.
+        let results: Vec<_> =
+            stream::iter(symbols.iter().map(|symbol| self.fetch_single_quote(symbol)))
+                .buffer_unordered(10)
+                .collect()
+                .await;
 
-        let results = join_all(futures).await;
+        // Return an error only if every request failed; partial success is acceptable.
+        let (successes, errors): (Vec<_>, Vec<_>) = results.into_iter().partition(Result::is_ok);
+        let quotes: Vec<Quote> = successes.into_iter().filter_map(Result::ok).collect();
 
-        // Collect successful results, skip failures
-        let quotes: Vec<Quote> = results.into_iter().filter_map(|r| r.ok()).collect();
+        if quotes.is_empty() && !errors.is_empty() {
+            return Err(errors.into_iter().find_map(Result::err).unwrap());
+        }
 
         Ok(quotes)
     }
@@ -119,12 +122,6 @@ impl YahooFinanceClient {
     #[allow(dead_code)] // Reserved for future regret-checking functionality
     pub async fn get_quote(&self, symbol: &str) -> Result<Quote> {
         self.fetch_single_quote(symbol).await
-    }
-}
-
-impl Default for YahooFinanceClient {
-    fn default() -> Self {
-        Self::new(10).expect("Failed to create default client")
     }
 }
 
@@ -251,38 +248,26 @@ fn parse_quote_type(s: Option<&str>) -> QuoteType {
 /// Because typing "-USD" is too much work for crypto bros.
 pub fn expand_symbol(symbol: &str) -> String {
     // Handle shorthand crypto symbols like "BTC.X" -> "BTC-USD"
-    // The .X suffix is like X marks the spot, but for losing money
     if let Some(base) = symbol.strip_suffix(".X") {
-        return format!("{}-USD", base);
+        return format!("{base}-USD");
     }
 
-    // Common crypto shortcuts
-    let shortcuts: HashMap<&str, &str> = [
-        ("BTC", "BTC-USD"),
-        ("ETH", "ETH-USD"),
-        ("SOL", "SOL-USD"),
-        ("DOGE", "DOGE-USD"),
-        ("XRP", "XRP-USD"),
-        ("ADA", "ADA-USD"),
-        ("DOT", "DOT-USD"),
-        ("MATIC", "MATIC-USD"),
-        ("LINK", "LINK-USD"),
-        ("UNI", "UNI-USD"),
-        ("AVAX", "AVAX-USD"),
-        ("ATOM", "ATOM-USD"),
-        ("LTC", "LTC-USD"),
-    ]
-    .into_iter()
-    .collect();
-
-    // Only expand if it looks like a crypto symbol (all caps, short)
-    if symbol.len() <= 5 && symbol.chars().all(|c| c.is_ascii_uppercase()) {
-        if let Some(expanded) = shortcuts.get(symbol) {
-            return expanded.to_string();
-        }
+    match symbol {
+        "BTC" => "BTC-USD".to_string(),
+        "ETH" => "ETH-USD".to_string(),
+        "SOL" => "SOL-USD".to_string(),
+        "ADA" => "ADA-USD".to_string(),
+        "DOT" => "DOT-USD".to_string(),
+        "DOGE" => "DOGE-USD".to_string(),
+        "XRP" => "XRP-USD".to_string(),
+        "AVAX" => "AVAX-USD".to_string(),
+        "MATIC" => "MATIC-USD".to_string(),
+        "LINK" => "LINK-USD".to_string(),
+        "UNI" => "UNI-USD".to_string(),
+        "ATOM" => "ATOM-USD".to_string(),
+        "LTC" => "LTC-USD".to_string(),
+        _ => symbol.to_string(),
     }
-
-    symbol.to_string()
 }
 
 #[cfg(test)]
