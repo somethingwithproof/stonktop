@@ -243,7 +243,7 @@ Stonktop uses the Yahoo Finance API to fetch real-time quotes. No API key is req
 
 ### Requirements
 
-- Rust 1.70 or later
+- Rust 1.86 or later
 - Cargo
 
 ### Development Build

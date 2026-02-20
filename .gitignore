@@ -17,6 +17,7 @@ Thumbs.db
 *.so
 *.dylib
 *.dll
+*.zip
 
 # Debug
 *.dSYM/

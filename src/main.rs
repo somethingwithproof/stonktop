@@ -86,6 +86,15 @@ async fn run_batch(app: &mut App) -> Result<()> {
 async fn run_interactive(app: &mut App) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
+
+    // Ensure terminal is restored on panic so the shell isn't left in raw mode.
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(std::io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+        original_hook(info);
+    }));
+
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
