@@ -85,6 +85,18 @@ pub struct Args {
     /// API timeout in seconds
     #[arg(long, default_value = "10")]
     pub timeout: u64,
+
+    /// Output format for batch mode (table, json, csv)
+    #[arg(long, value_enum, default_value = "table")]
+    pub format: OutputFormat,
+
+    /// Generate a sample configuration file
+    #[arg(long)]
+    pub init: bool,
+
+    /// Force overwrite existing config file (use with --init)
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Sort field options (similar to top's sort fields).
@@ -144,6 +156,18 @@ pub enum ColorMode {
     Always,
     /// Never use colors
     Never,
+}
+
+/// Output format for batch mode.
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum OutputFormat {
+    /// Classic table layout (default)
+    #[default]
+    Table,
+    /// JSON output for programmatic consumption
+    Json,
+    /// CSV output for spreadsheet warriors
+    Csv,
 }
 
 impl Args {
