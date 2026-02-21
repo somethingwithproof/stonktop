@@ -7,29 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-02-20
+## [0.3.0] - 2026-02-20
 
-### Fixed
-- Panic on multi-byte UTF-8 strings in column truncation
-- Panic on invalid timestamps from Yahoo Finance API
-- Terminal left in raw mode after panic (added panic hook)
-- Silent empty table when all API requests fail
-- TTY detection now uses std::io::IsTerminal instead of $TERM check
+### Added
+- `--format json/csv` output modes for batch mode
+- `--init` flag to generate default config file
+- `--force` flag for overwriting existing config
+- Interactive symbol add (`a`) and remove (`x`) keys
+- Detail popup for individual stock info (`Enter`/`d`)
+- Color-coded display and verbose output modes
+- Scroll position tracking for large symbol lists
 
 ### Changed
-- Rate-limit concurrent API requests to 10 via buffer_unordered
-- Replace futures crate with lighter futures-util
-- Trim tokio features to rt-multi-thread, macros, time
-- Replace per-call HashMap in expand_symbol with match
-- Accept &Path instead of &PathBuf in config load/save
-- Pin all GitHub Actions to full commit SHA
-- Fix actions/checkout@v6 (nonexistent) to v4 SHA
+- GitHub Actions pinned to full SHA with explicit permissions blocks
 
-### Removed
-- Unused CLI flags: --top, --filter, --no-header, --color, --currency
-- Unused humantime dependency
-- Unused Default impl on YahooFinanceClient
-- Stale stonktop-refactored.zip from repo
+### Testing
+- E2E test infrastructure with wiremock mock server
+- 41 new tests covering keybinding, UI formatting, config, and app modules
 
 ## [0.1.1] - 2025-12-16
 
@@ -66,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - macOS (x86_64, Apple Silicon)
 - Windows (x86_64, aarch64)
 
-[Unreleased]: https://github.com/thomasvincent/stonktop/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/thomasvincent/stonktop/compare/v0.1.1...v0.2.0
+[Unreleased]: https://github.com/thomasvincent/stonktop/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/thomasvincent/stonktop/compare/v0.1.1...v0.3.0
 [0.1.1]: https://github.com/thomasvincent/stonktop/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thomasvincent/stonktop/releases/tag/v0.1.0

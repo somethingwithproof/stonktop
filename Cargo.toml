@@ -1,6 +1,6 @@
 [package]
 name = "stonktop"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.86"
 authors = ["Thomas Vincent <thomasvincent@gmail.com>"]
@@ -29,8 +29,8 @@ ratatui = "0.30"
 crossterm = "0.29"
 
 # Async runtime
-tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "time"] }
-futures-util = "0.3"
+tokio = { version = "1.49", features = ["full"] }
+futures = "0.3"
 
 # HTTP client
 reqwest = { version = "0.13", features = ["json"] }
@@ -54,6 +54,7 @@ toml = "0.9"
 chrono = { version = "0.4", features = ["serde"] }
 
 # Formatting
+humantime = "2.1"
 num-format = "0.4"
 
 [dev-dependencies]
