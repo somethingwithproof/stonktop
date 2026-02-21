@@ -1,0 +1,26 @@
+{
+  "chart": {
+    "result": [
+      {
+        "meta": {
+          "symbol": "BTC-USD",
+          "shortName": "Bitcoin USD",
+          "longName": "Bitcoin USD",
+          "regularMarketPrice": 43250.75,
+          "chartPreviousClose": 42800.00,
+          "previousClose": 42800.00,
+          "regularMarketDayHigh": 43500.00,
+          "regularMarketDayLow": 42600.00,
+          "fiftyTwoWeekHigh": 48000.00,
+          "fiftyTwoWeekLow": 15400.00,
+          "regularMarketVolume": 28000000000,
+          "currency": "USD",
+          "exchangeName": "CCC",
+          "instrumentType": "CRYPTOCURRENCY",
+          "regularMarketTime": 1700000000
+        }
+      }
+    ],
+    "error": null
+  }
+}

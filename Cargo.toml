@@ -1,6 +1,6 @@
 [package]
 name = "stonktop"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.86"
 authors = ["Thomas Vincent <thomasvincent@gmail.com>"]
@@ -56,6 +56,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # Formatting
 num-format = "0.4"
 
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"
+
 [profile.release]
 lto = true
 codegen-units = 1
@@ -70,6 +74,10 @@ strip = false
 [[bin]]
 name = "stonktop"
 path = "src/main.rs"
+
+[lib]
+name = "stonktop"
+path = "src/lib.rs"
 
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/stonktop-{ target }.tar.gz"

@@ -234,7 +234,7 @@ impl Config {
 
     /// Save configuration to file.
     /// For when you finally decide to commit to your investment strategy.
-    #[allow(dead_code)] // Config export feature - because backup plans are underrated
+    #[allow(dead_code)] // Used by unit tests; --init uses sample_config() directly
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| {
@@ -342,4 +342,93 @@ border = "#444444"
 tech = ["AAPL", "GOOGL", "MSFT", "NVDA"]
 crypto = ["BTC-USD", "ETH-USD", "SOL-USD"]
 "##
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_empty_toml_defaults() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(tmp, "").unwrap();
+        let config = Config::load(tmp.path()).unwrap();
+        assert!(config.watchlist.symbols.is_empty());
+        assert!(config.holdings.is_empty());
+        assert_eq!(config.general.refresh_interval, 5.0);
+    }
+
+    #[test]
+    fn test_malformed_toml_error() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(tmp, "this is not valid {{ toml }}").unwrap();
+        assert!(Config::load(tmp.path()).is_err());
+    }
+
+    #[test]
+    fn test_missing_holdings_section() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(tmp, "[watchlist]\nsymbols = [\"AAPL\"]").unwrap();
+        let config = Config::load(tmp.path()).unwrap();
+        assert!(config.holdings.is_empty());
+        assert_eq!(config.watchlist.symbols, vec!["AAPL"]);
+    }
+
+    #[test]
+    fn test_all_symbols_deduplication() {
+        let config = Config {
+            watchlist: WatchlistConfig {
+                symbols: vec!["AAPL".to_string(), "GOOGL".to_string()],
+            },
+            holdings: vec![HoldingConfig {
+                symbol: "AAPL".to_string(), // duplicate
+                quantity: 10.0,
+                cost_basis: 150.0,
+            }],
+            groups: {
+                let mut m = HashMap::new();
+                m.insert(
+                    "tech".to_string(),
+                    vec!["AAPL".to_string(), "MSFT".to_string()],
+                );
+                m
+            },
+            ..Config::default()
+        };
+        let symbols = config.all_symbols();
+        // AAPL should appear only once
+        assert_eq!(symbols.iter().filter(|s| *s == "AAPL").count(), 1);
+        assert!(symbols.contains(&"GOOGL".to_string()));
+        assert!(symbols.contains(&"MSFT".to_string()));
+    }
+
+    #[test]
+    fn test_save_round_trip() {
+        let config = Config {
+            watchlist: WatchlistConfig {
+                symbols: vec!["AAPL".to_string()],
+            },
+            ..Config::default()
+        };
+        let tmp = NamedTempFile::new().unwrap();
+        config.save(tmp.path()).unwrap();
+        let loaded = Config::load(tmp.path()).unwrap();
+        assert_eq!(loaded.watchlist.symbols, config.watchlist.symbols);
+    }
+
+    #[test]
+    fn test_default_config_path() {
+        let path = Config::default_config_path();
+        assert!(path.is_some());
+        let p = path.unwrap();
+        assert!(p.to_string_lossy().contains("stonktop"));
+    }
+
+    #[test]
+    fn test_sample_config_valid_toml() {
+        let sample = sample_config();
+        let _config: Config = toml::from_str(sample).expect("sample config should be valid TOML");
+    }
 }

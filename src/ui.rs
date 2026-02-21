@@ -37,9 +37,27 @@ impl Default for UiColors {
     }
 }
 
+impl UiColors {
+    /// Create colors appropriate for the given color mode.
+    /// "Never" mode strips all color — for the emotionally detached investor.
+    pub fn for_mode(mode: &crate::cli::ColorMode) -> Self {
+        match mode {
+            crate::cli::ColorMode::Never => Self {
+                gain: Color::Reset,
+                loss: Color::Reset,
+                neutral: Color::Reset,
+                header_bg: Color::Reset,
+                selected_bg: Color::Reset,
+                border: Color::Reset,
+            },
+            _ => Self::default(),
+        }
+    }
+}
+
 /// Render the main UI.
 pub fn render(frame: &mut Frame, app: &App) {
-    let colors = UiColors::default();
+    let colors = UiColors::for_mode(&app.color_mode);
 
     // Create layout
     let chunks = Layout::default()
@@ -72,6 +90,11 @@ pub fn render(frame: &mut Frame, app: &App) {
     // Render error if present
     if let Some(ref error) = app.error {
         render_error(frame, error, &colors);
+    }
+
+    // Render detail popup if active
+    if app.show_detail {
+        render_detail(frame, app, &colors);
     }
 }
 
@@ -154,7 +177,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
 
 /// Render the quotes table.
 fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
-    let header_cells = [
+    let mut base_headers: Vec<(&str, SortOrder)> = vec![
         ("SYMBOL", SortOrder::Symbol),
         ("NAME", SortOrder::Name),
         ("PRICE", SortOrder::Price),
@@ -162,10 +185,17 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         ("CHG%", SortOrder::ChangePercent),
         ("VOLUME", SortOrder::Volume),
         ("MKT CAP", SortOrder::MarketCap),
-    ]
-    .iter()
-    .map(|(name, order)| {
-        let style = if app.sort_order == *order {
+    ];
+
+    // Verbose mode adds extra columns for the truly data-hungry
+    if app.verbose {
+        base_headers.push(("EXCHANGE", SortOrder::Symbol)); // no dedicated sort
+        base_headers.push(("CCY", SortOrder::Symbol));
+        base_headers.push(("TYPE", SortOrder::Symbol));
+    }
+
+    let header_cells = base_headers.iter().map(|(name, order)| {
+        let style = if app.sort_order == *order && *name == order.header() {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
@@ -173,7 +203,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             Style::default().fg(Color::White)
         };
 
-        let indicator = if app.sort_order == *order {
+        let indicator = if app.sort_order == *order && *name == order.header() {
             match app.sort_direction {
                 crate::models::SortDirection::Ascending => " ▲",
                 crate::models::SortDirection::Descending => " ▼",
@@ -189,8 +219,15 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         .style(Style::default().bg(colors.header_bg))
         .height(1);
 
-    let rows = app.quotes.iter().enumerate().map(|(i, quote)| {
-        let is_selected = i == app.selected;
+    let visible_quotes: Vec<_> = app
+        .quotes
+        .iter()
+        .enumerate()
+        .skip(app.scroll_offset)
+        .collect();
+
+    let rows = visible_quotes.iter().map(|(i, quote)| {
+        let is_selected = *i == app.selected;
         let change_color = if quote.change_percent > 0.0 {
             colors.gain
         } else if quote.change_percent < 0.0 {
@@ -205,7 +242,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             Style::default()
         };
 
-        let cells = vec![
+        let mut cells = vec![
             Cell::from(quote.symbol.clone()),
             Cell::from(truncate_string(&quote.name, 20)),
             Cell::from(format_price(quote.price)),
@@ -216,10 +253,16 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             Cell::from(format_market_cap(quote.market_cap)),
         ];
 
+        if app.verbose {
+            cells.push(Cell::from(truncate_string(&quote.exchange, 10)));
+            cells.push(Cell::from(quote.currency.clone()));
+            cells.push(Cell::from(format!("{}", quote.quote_type)));
+        }
+
         Row::new(cells).style(row_style)
     });
 
-    let widths = [
+    let mut widths = vec![
         Constraint::Length(10),
         Constraint::Length(22),
         Constraint::Length(12),
@@ -229,13 +272,20 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         Constraint::Length(12),
     ];
 
+    if app.verbose {
+        widths.push(Constraint::Length(12));
+        widths.push(Constraint::Length(5));
+        widths.push(Constraint::Length(8));
+    }
+
     let table = Table::new(rows, widths)
         .header(header)
         .block(Block::default().borders(Borders::NONE))
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
+    let adjusted_selected = app.selected.saturating_sub(app.scroll_offset);
     let mut state = TableState::default();
-    state.select(Some(app.selected));
+    state.select(Some(adjusted_selected));
 
     frame.render_stateful_widget(table, area, &mut state);
 }
@@ -311,6 +361,23 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
 
 /// Render the footer with keybindings.
 fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
+    // Input mode gets a special prompt
+    if app.input_mode == crate::app::InputMode::AddSymbol {
+        let input_line = Line::from(vec![
+            Span::styled(" Add symbol: ", Style::default().fg(Color::Yellow)),
+            Span::raw(&app.input_buffer),
+            Span::styled(
+                "_",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::SLOW_BLINK),
+            ),
+        ]);
+        let footer_widget = Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
+        frame.render_widget(footer_widget, area);
+        return;
+    }
+
     let mode = if app.show_holdings {
         "Holdings"
     } else {
@@ -377,6 +444,11 @@ fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
         Line::from("  f         Toggle fundamentals"),
         Line::from("  Tab       Cycle groups"),
         Line::from(""),
+        Line::from("Symbols:"),
+        Line::from("  a         Add symbol"),
+        Line::from("  d         Remove symbol"),
+        Line::from("  Enter     Quote detail"),
+        Line::from(""),
         Line::from("Actions:"),
         Line::from("  Space/R   Force refresh"),
         Line::from("  q/Esc     Quit"),
@@ -440,7 +512,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 /// Format price with appropriate precision.
 /// Penny stocks get more decimals because every fraction of a cent matters
 /// when you're hoping for that 10,000% gain.
-fn format_price(price: f64) -> String {
+pub(crate) fn format_price(price: f64) -> String {
     if price >= 1.0 {
         // Normal prices get normal formatting
         format!("${:.2}", price)
@@ -451,7 +523,7 @@ fn format_price(price: f64) -> String {
 }
 
 /// Format volume with suffixes.
-fn format_volume(volume: u64) -> String {
+pub(crate) fn format_volume(volume: u64) -> String {
     if volume >= 1_000_000_000 {
         format!("{:.2}B", volume as f64 / 1_000_000_000.0)
     } else if volume >= 1_000_000 {
@@ -464,7 +536,7 @@ fn format_volume(volume: u64) -> String {
 }
 
 /// Format market cap with suffixes.
-fn format_market_cap(market_cap: Option<u64>) -> String {
+pub(crate) fn format_market_cap(market_cap: Option<u64>) -> String {
     match market_cap {
         Some(cap) if cap >= 1_000_000_000_000 => {
             format!("${:.2}T", cap as f64 / 1_000_000_000_000.0)
@@ -477,7 +549,7 @@ fn format_market_cap(market_cap: Option<u64>) -> String {
 }
 
 /// Truncate string to max length, respecting UTF-8 char boundaries.
-fn truncate_string(s: &str, max_len: usize) -> String {
+pub(crate) fn truncate_string(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         return s.to_string();
     }
@@ -491,8 +563,85 @@ fn truncate_string(s: &str, max_len: usize) -> String {
     format!("{}...", &s[..end])
 }
 
+/// Render detail popup for the selected quote.
+fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
+    if let Some(quote) = app.selected_quote() {
+        let area = centered_rect(60, 60, frame.area());
+
+        let detail_text = vec![
+            Line::from(Span::styled(
+                format!(" {} - {} ", quote.symbol, quote.name),
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(format!("  Price:          {}", format_price(quote.price))),
+            Line::from(format!(
+                "  Change:         {:+.2} ({:+.2}%)",
+                quote.change, quote.change_percent
+            )),
+            Line::from(format!(
+                "  Prev Close:     {}",
+                format_price(quote.previous_close)
+            )),
+            Line::from(format!("  Open:           {}", format_price(quote.open))),
+            Line::from(format!(
+                "  Day High:       {}",
+                format_price(quote.day_high)
+            )),
+            Line::from(format!("  Day Low:        {}", format_price(quote.day_low))),
+            Line::from(format!(
+                "  52w High:       {}",
+                format_price(quote.year_high)
+            )),
+            Line::from(format!(
+                "  52w Low:        {}",
+                format_price(quote.year_low)
+            )),
+            Line::from(format!("  Volume:         {}", format_volume(quote.volume))),
+            Line::from(format!(
+                "  Avg Volume:     {}",
+                format_volume(quote.avg_volume)
+            )),
+            Line::from(format!(
+                "  Market Cap:     {}",
+                format_market_cap(quote.market_cap)
+            )),
+            Line::from(format!("  Exchange:       {}", quote.exchange)),
+            Line::from(format!("  Currency:       {}", quote.currency)),
+            Line::from(format!("  Type:           {}", quote.quote_type)),
+            Line::from(format!(
+                "  Timestamp:      {}",
+                quote.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+            )),
+            Line::from(""),
+            Line::from("  Press any key to close"),
+        ];
+
+        let detail = Paragraph::new(detail_text)
+            .block(
+                Block::default()
+                    .title(" Quote Detail ")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(colors.border)),
+            )
+            .wrap(Wrap { trim: false });
+
+        frame.render_widget(Clear, area);
+        frame.render_widget(detail, area);
+    }
+}
+
 /// Render batch mode output (non-interactive).
-pub fn render_batch(app: &App) {
+pub fn render_batch(app: &App, format: &crate::cli::OutputFormat) {
+    match format {
+        crate::cli::OutputFormat::Table => render_batch_table(app),
+        crate::cli::OutputFormat::Json => render_batch_json(app),
+        crate::cli::OutputFormat::Csv => render_batch_csv(app),
+    }
+}
+
+/// Batch output as a classic table.
+fn render_batch_table(app: &App) {
     use chrono::Local;
 
     println!(
@@ -549,4 +698,137 @@ pub fn render_batch(app: &App) {
     }
 
     println!();
+}
+
+/// Batch output as JSON — for the pipeline-minded.
+fn render_batch_json(app: &App) {
+    match serde_json::to_string_pretty(&app.quotes) {
+        Ok(json) => println!("{}", json),
+        Err(e) => eprintln!("JSON serialization error: {}", e),
+    }
+}
+
+/// Batch output as CSV — for spreadsheet warriors everywhere.
+fn render_batch_csv(app: &App) {
+    println!("symbol,name,price,change,change_percent,volume,market_cap");
+    for quote in &app.quotes {
+        println!(
+            "{},{},{:.2},{:+.2},{:+.2},{},{}",
+            quote.symbol,
+            quote.name.replace(',', ";"), // escape commas in names
+            quote.price,
+            quote.change,
+            quote.change_percent,
+            quote.volume,
+            quote.market_cap.map_or("-".to_string(), |c| c.to_string())
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- format_price tests ---
+
+    #[test]
+    fn test_format_price_normal() {
+        assert_eq!(format_price(195.89), "$195.89");
+        assert_eq!(format_price(1.00), "$1.00");
+        assert_eq!(format_price(1000.50), "$1000.50");
+    }
+
+    #[test]
+    fn test_format_price_penny() {
+        assert_eq!(format_price(0.001234), "$0.001234");
+        assert_eq!(format_price(0.99), "$0.990000");
+    }
+
+    #[test]
+    fn test_format_price_zero() {
+        assert_eq!(format_price(0.0), "$0.000000");
+    }
+
+    // --- format_volume tests ---
+
+    #[test]
+    fn test_format_volume_billions() {
+        assert_eq!(format_volume(2_000_000_000), "2.00B");
+    }
+
+    #[test]
+    fn test_format_volume_millions() {
+        assert_eq!(format_volume(1_500_000), "1.50M");
+    }
+
+    #[test]
+    fn test_format_volume_thousands() {
+        assert_eq!(format_volume(1_000), "1.00K");
+    }
+
+    #[test]
+    fn test_format_volume_small() {
+        assert_eq!(format_volume(999), "999");
+        assert_eq!(format_volume(0), "0");
+    }
+
+    // --- format_market_cap tests ---
+
+    #[test]
+    fn test_format_market_cap_trillions() {
+        assert_eq!(format_market_cap(Some(3_000_000_000_000)), "$3.00T");
+    }
+
+    #[test]
+    fn test_format_market_cap_billions() {
+        assert_eq!(format_market_cap(Some(5_000_000_000)), "$5.00B");
+    }
+
+    #[test]
+    fn test_format_market_cap_millions() {
+        assert_eq!(format_market_cap(Some(5_000_000)), "$5.00M");
+    }
+
+    #[test]
+    fn test_format_market_cap_small() {
+        assert_eq!(format_market_cap(Some(500)), "$500");
+    }
+
+    #[test]
+    fn test_format_market_cap_none() {
+        assert_eq!(format_market_cap(None), "-");
+    }
+
+    // --- truncate_string tests ---
+
+    #[test]
+    fn test_truncate_within_limit() {
+        assert_eq!(truncate_string("hello", 10), "hello");
+    }
+
+    #[test]
+    fn test_truncate_at_limit() {
+        assert_eq!(truncate_string("hello", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_over_limit() {
+        assert_eq!(truncate_string("hello world", 8), "hello...");
+    }
+
+    #[test]
+    fn test_truncate_tiny_max() {
+        assert_eq!(truncate_string("hello", 3), "...");
+        assert_eq!(truncate_string("hello", 2), "..");
+        assert_eq!(truncate_string("hello", 1), ".");
+    }
+
+    #[test]
+    fn test_truncate_multibyte_utf8() {
+        // Should not panic on multi-byte chars
+        let s = "héllo wörld";
+        let result = truncate_string(s, 6);
+        assert!(result.len() <= 9); // byte len, not char len
+        assert!(result.ends_with("..."));
+    }
 }

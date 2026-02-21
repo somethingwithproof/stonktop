@@ -18,7 +18,7 @@ use app::App;
 use cli::Args;
 use config::Config;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -37,6 +37,25 @@ async fn main() -> Result<()> {
     } else {
         Config::load_or_default()
     };
+
+    // Handle --init flag
+    if args.init {
+        let path = Config::default_config_path()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
+
+        if path.exists() && !args.force {
+            eprintln!("Config file already exists: {}", path.display());
+            eprintln!("Use --force to overwrite.");
+            std::process::exit(1);
+        }
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, config::sample_config())?;
+        println!("Config file written to: {}", path.display());
+        std::process::exit(0);
+    }
 
     // Create application state
     let mut app = App::new(&args, &config)?;
@@ -60,17 +79,17 @@ async fn main() -> Result<()> {
 
     // Run in batch mode or interactive mode
     if app.batch_mode {
-        run_batch(&mut app).await
+        run_batch(&mut app, &args.format).await
     } else {
         run_interactive(&mut app).await
     }
 }
 
 /// Run in batch mode (non-interactive, like top -b).
-async fn run_batch(app: &mut App) -> Result<()> {
+async fn run_batch(app: &mut App, format: &cli::OutputFormat) -> Result<()> {
     loop {
         app.refresh().await?;
-        ui::render_batch(app);
+        ui::render_batch(app, format);
 
         if app.should_quit() {
             break;
@@ -141,7 +160,7 @@ async fn run_app(
                         _ => {}
                     }
                 } else {
-                    handle_key_event(app, key.code, key.modifiers);
+                    app.handle_key_event(key.code, key.modifiers);
                 }
             }
         }
@@ -158,71 +177,4 @@ async fn run_app(
     }
 
     Ok(())
-}
-
-/// Handle keyboard input.
-fn handle_key_event(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
-    // Close help overlay on any key
-    if app.show_help {
-        app.show_help = false;
-        return;
-    }
-
-    // Clear error on any key
-    if app.error.is_some() {
-        app.error = None;
-        return;
-    }
-
-    match code {
-        // Quit
-        KeyCode::Char('q') | KeyCode::Esc => app.quit(),
-        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
-
-        // Navigation
-        KeyCode::Up | KeyCode::Char('k') => app.select_up(),
-        KeyCode::Down | KeyCode::Char('j') => app.select_down(),
-        KeyCode::Home | KeyCode::Char('g') => app.select_top(),
-        KeyCode::End | KeyCode::Char('G') => app.select_bottom(),
-        KeyCode::PageUp => {
-            for _ in 0..10 {
-                app.select_up();
-            }
-        }
-        KeyCode::PageDown => {
-            for _ in 0..10 {
-                app.select_down();
-            }
-        }
-
-        // Sorting
-        KeyCode::Char('s') => app.next_sort_order(),
-        KeyCode::Char('r') => app.toggle_sort_direction(),
-        KeyCode::Char('1') => app.set_sort_order(models::SortOrder::Symbol),
-        KeyCode::Char('2') => app.set_sort_order(models::SortOrder::Name),
-        KeyCode::Char('3') => app.set_sort_order(models::SortOrder::Price),
-        KeyCode::Char('4') => app.set_sort_order(models::SortOrder::Change),
-        KeyCode::Char('5') => app.set_sort_order(models::SortOrder::ChangePercent),
-        KeyCode::Char('6') => app.set_sort_order(models::SortOrder::Volume),
-        KeyCode::Char('7') => app.set_sort_order(models::SortOrder::MarketCap),
-
-        // Display toggles
-        KeyCode::Char('H') => app.toggle_holdings(),
-        KeyCode::Char('f') => app.toggle_fundamentals(),
-        KeyCode::Char('h') | KeyCode::Char('?') => app.toggle_help(),
-
-        // Refresh
-        KeyCode::Char(' ') | KeyCode::Char('R') => {
-            app.last_refresh = None; // Force refresh on next tick
-        }
-
-        // Groups
-        KeyCode::Tab => {
-            if !app.groups.is_empty() {
-                app.active_group = (app.active_group + 1) % app.groups.len();
-            }
-        }
-
-        _ => {}
-    }
 }
