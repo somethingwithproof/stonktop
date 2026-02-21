@@ -31,11 +31,19 @@ fn is_valid_symbol(symbol: &str) -> bool {
 pub struct YahooFinanceClient {
     client: Client,
     timeout: Duration,
+    base_url: String,
 }
 
 impl YahooFinanceClient {
     /// Create a new Yahoo Finance client.
     pub fn new(timeout_secs: u64) -> Result<Self> {
+        let base_url =
+            std::env::var("STONKTOP_API_BASE_URL").unwrap_or_else(|_| YAHOO_CHART_URL.to_string());
+        Self::with_base_url(timeout_secs, base_url)
+    }
+
+    /// Create a client pointing at a custom base URL (for testing).
+    pub fn with_base_url(timeout_secs: u64, base_url: String) -> Result<Self> {
         let client = Client::builder()
             .user_agent(USER_AGENT)
             .timeout(Duration::from_secs(timeout_secs))
@@ -45,6 +53,7 @@ impl YahooFinanceClient {
         Ok(Self {
             client,
             timeout: Duration::from_secs(timeout_secs),
+            base_url,
         })
     }
 
@@ -77,7 +86,7 @@ impl YahooFinanceClient {
         }
 
         // Symbol goes in the path, not as a query parameter
-        let url = format!("{}/{}?interval=1d&range=1d", YAHOO_CHART_URL, symbol);
+        let url = format!("{}/{}?interval=1d&range=1d", self.base_url, symbol);
 
         let response = self
             .client

@@ -64,6 +64,18 @@ pub struct App {
 impl App {
     /// Create a new application from CLI args and config.
     pub fn new(args: &Args, config: &Config) -> Result<Self> {
+        let client = YahooFinanceClient::new(args.timeout)?;
+        Self::build(args, config, client)
+    }
+
+    /// Create a new application with a custom API base URL (for testing).
+    #[allow(dead_code)]
+    pub fn with_base_url(args: &Args, config: &Config, base_url: String) -> Result<Self> {
+        let client = YahooFinanceClient::with_base_url(args.timeout, base_url)?;
+        Self::build(args, config, client)
+    }
+
+    fn build(args: &Args, config: &Config, client: YahooFinanceClient) -> Result<Self> {
         // Merge symbols from args and config
         let mut symbols: Vec<String> = args.symbols.clone().unwrap_or_else(|| config.all_symbols());
 
@@ -83,9 +95,6 @@ impl App {
 
         // Get groups
         let groups: Vec<String> = config.groups.keys().cloned().collect();
-
-        let client = YahooFinanceClient::new(args.timeout)?;
-
         // Enforce minimum refresh interval of 1.0 second
         let delay = if args.delay < 1.0 { 1.0 } else { args.delay };
 
