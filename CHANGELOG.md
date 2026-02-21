@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-20
+
+### Added
+- `--format json/csv` output modes for batch mode
+- `--init` flag to generate default config file
+- `--force` flag for overwriting existing config
+- Interactive symbol add (`a`) and remove (`x`) keys
+- Detail popup for individual stock info (`Enter`/`d`)
+- Color-coded display and verbose output modes
+- Scroll position tracking for large symbol lists
+
+### Changed
+- GitHub Actions pinned to full SHA with explicit permissions blocks
+
+### Testing
+- E2E test infrastructure with wiremock mock server
+- 41 new tests covering keybinding, UI formatting, config, and app modules
+
 ## [0.1.1] - 2025-12-16
 
 ### Fixed
@@ -42,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - macOS (x86_64, Apple Silicon)
 - Windows (x86_64, aarch64)
 
-[Unreleased]: https://github.com/thomasvincent/stonktop/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/thomasvincent/stonktop/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/thomasvincent/stonktop/compare/v0.1.1...v0.3.0
 [0.1.1]: https://github.com/thomasvincent/stonktop/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thomasvincent/stonktop/releases/tag/v0.1.0
