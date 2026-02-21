@@ -10,6 +10,15 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+/// Input mode for interactive commands.
+/// Normal is for watching numbers move. AddSymbol is for adding more numbers to watch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InputMode {
+    #[default]
+    Normal,
+    AddSymbol,
+}
+
 /// Application state.
 /// Think of it as your financial life, but with better error handling.
 pub struct App {
@@ -40,7 +49,6 @@ pub struct App {
     /// Selected row index
     pub selected: usize,
     /// Scroll offset for when you have more regrets than fit on screen
-    #[allow(dead_code)] // Future scrolling feature - coming soon to a terminal near you
     pub scroll_offset: usize,
     /// Show help overlay
     pub show_help: bool,
@@ -57,8 +65,15 @@ pub struct App {
     /// Group names
     pub groups: Vec<String>,
     /// Verbose mode - for when you want MORE numbers to stress about
-    #[allow(dead_code)] // TODO: Add more verbosity, because anxiety needs details
     pub verbose: bool,
+    /// Color mode preference
+    pub color_mode: crate::cli::ColorMode,
+    /// Current input mode
+    pub input_mode: InputMode,
+    /// Input buffer for text entry
+    pub input_buffer: String,
+    /// Show detail popup for selected quote
+    pub show_detail: bool,
 }
 
 impl App {
@@ -125,6 +140,10 @@ impl App {
             active_group: 0,
             groups,
             verbose: args.verbose,
+            color_mode: args.color,
+            input_mode: InputMode::Normal,
+            input_buffer: String::new(),
+            show_detail: false,
         })
     }
 
@@ -216,6 +235,9 @@ impl App {
     pub fn select_up(&mut self) {
         if self.selected > 0 {
             self.selected -= 1;
+            if self.selected < self.scroll_offset {
+                self.scroll_offset = self.selected;
+            }
         }
     }
 
@@ -229,6 +251,7 @@ impl App {
     /// Move selection to top.
     pub fn select_top(&mut self) {
         self.selected = 0;
+        self.scroll_offset = 0;
     }
 
     /// Move selection to bottom.
@@ -254,6 +277,13 @@ impl App {
     pub fn toggle_fundamentals(&mut self) {
         if !self.secure_mode {
             self.show_fundamentals = !self.show_fundamentals;
+        }
+    }
+
+    /// Toggle detail view for the selected quote.
+    pub fn toggle_detail(&mut self) {
+        if !self.secure_mode {
+            self.show_detail = !self.show_detail;
         }
     }
 
@@ -299,7 +329,6 @@ impl App {
 
     /// Add a symbol to watch.
     /// For when FOMO hits and you need to track one more meme stock.
-    #[allow(dead_code)] // Interactive symbol adding - coming in v2.0 (probably)
     pub fn add_symbol(&mut self, symbol: &str) {
         let expanded = expand_symbol(symbol);
         if !self.symbols.contains(&expanded) {
@@ -309,7 +338,6 @@ impl App {
 
     /// Remove a symbol from watch.
     /// Denial is the first stage of grief. Removing it from your watchlist is the second.
-    #[allow(dead_code)] // Interactive symbol removal - for those who can't handle the truth
     pub fn remove_symbol(&mut self, symbol: &str) {
         let expanded = expand_symbol(symbol);
         self.symbols.retain(|s| s != &expanded);
@@ -321,7 +349,6 @@ impl App {
 
     /// Get the currently selected quote.
     /// Returns the quote you're currently staring at in disbelief.
-    #[allow(dead_code)] // Used by future detail view feature
     pub fn selected_quote(&self) -> Option<&Quote> {
         self.quotes.get(self.selected)
     }
