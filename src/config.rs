@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Application configuration loaded from TOML file.
 /// Where you define which assets will keep you up at night.
@@ -202,7 +202,7 @@ fn default_border_color() -> String {
 
 impl Config {
     /// Load configuration from file.
-    pub fn load(path: &Path) -> Result<Self> {
+    pub fn load(path: &PathBuf) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
@@ -234,8 +234,8 @@ impl Config {
 
     /// Save configuration to file.
     /// For when you finally decide to commit to your investment strategy.
-    #[allow(dead_code)] // Config export feature - because backup plans are underrated
-    pub fn save(&self, path: &Path) -> Result<()> {
+    #[allow(dead_code)] // Used by unit tests; --init uses sample_config() directly
+    pub fn save(&self, path: &PathBuf) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| {
                 format!("Failed to create config directory: {}", parent.display())
