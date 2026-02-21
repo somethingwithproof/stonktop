@@ -512,7 +512,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 /// Format price with appropriate precision.
 /// Penny stocks get more decimals because every fraction of a cent matters
 /// when you're hoping for that 10,000% gain.
-fn format_price(price: f64) -> String {
+pub(crate) fn format_price(price: f64) -> String {
     if price >= 1.0 {
         // Normal prices get normal formatting
         format!("${:.2}", price)
@@ -523,7 +523,7 @@ fn format_price(price: f64) -> String {
 }
 
 /// Format volume with suffixes.
-fn format_volume(volume: u64) -> String {
+pub(crate) fn format_volume(volume: u64) -> String {
     if volume >= 1_000_000_000 {
         format!("{:.2}B", volume as f64 / 1_000_000_000.0)
     } else if volume >= 1_000_000 {
@@ -536,7 +536,7 @@ fn format_volume(volume: u64) -> String {
 }
 
 /// Format market cap with suffixes.
-fn format_market_cap(market_cap: Option<u64>) -> String {
+pub(crate) fn format_market_cap(market_cap: Option<u64>) -> String {
     match market_cap {
         Some(cap) if cap >= 1_000_000_000_000 => {
             format!("${:.2}T", cap as f64 / 1_000_000_000_000.0)
@@ -549,7 +549,7 @@ fn format_market_cap(market_cap: Option<u64>) -> String {
 }
 
 /// Truncate string to max length.
-fn truncate_string(s: &str, max_len: usize) -> String {
+pub(crate) fn truncate_string(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else if max_len <= 3 {
@@ -722,5 +722,113 @@ fn render_batch_csv(app: &App) {
             quote.volume,
             quote.market_cap.map_or("-".to_string(), |c| c.to_string())
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- format_price tests ---
+
+    #[test]
+    fn test_format_price_normal() {
+        assert_eq!(format_price(195.89), "$195.89");
+        assert_eq!(format_price(1.00), "$1.00");
+        assert_eq!(format_price(1000.50), "$1000.50");
+    }
+
+    #[test]
+    fn test_format_price_penny() {
+        assert_eq!(format_price(0.001234), "$0.001234");
+        assert_eq!(format_price(0.99), "$0.990000");
+    }
+
+    #[test]
+    fn test_format_price_zero() {
+        assert_eq!(format_price(0.0), "$0.000000");
+    }
+
+    // --- format_volume tests ---
+
+    #[test]
+    fn test_format_volume_billions() {
+        assert_eq!(format_volume(2_000_000_000), "2.00B");
+    }
+
+    #[test]
+    fn test_format_volume_millions() {
+        assert_eq!(format_volume(1_500_000), "1.50M");
+    }
+
+    #[test]
+    fn test_format_volume_thousands() {
+        assert_eq!(format_volume(1_000), "1.00K");
+    }
+
+    #[test]
+    fn test_format_volume_small() {
+        assert_eq!(format_volume(999), "999");
+        assert_eq!(format_volume(0), "0");
+    }
+
+    // --- format_market_cap tests ---
+
+    #[test]
+    fn test_format_market_cap_trillions() {
+        assert_eq!(format_market_cap(Some(3_000_000_000_000)), "$3.00T");
+    }
+
+    #[test]
+    fn test_format_market_cap_billions() {
+        assert_eq!(format_market_cap(Some(5_000_000_000)), "$5.00B");
+    }
+
+    #[test]
+    fn test_format_market_cap_millions() {
+        assert_eq!(format_market_cap(Some(5_000_000)), "$5.00M");
+    }
+
+    #[test]
+    fn test_format_market_cap_small() {
+        assert_eq!(format_market_cap(Some(500)), "$500");
+    }
+
+    #[test]
+    fn test_format_market_cap_none() {
+        assert_eq!(format_market_cap(None), "-");
+    }
+
+    // --- truncate_string tests ---
+
+    #[test]
+    fn test_truncate_within_limit() {
+        assert_eq!(truncate_string("hello", 10), "hello");
+    }
+
+    #[test]
+    fn test_truncate_at_limit() {
+        assert_eq!(truncate_string("hello", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_over_limit() {
+        assert_eq!(truncate_string("hello world", 8), "hello...");
+    }
+
+    #[test]
+    fn test_truncate_tiny_max() {
+        assert_eq!(truncate_string("hello", 3), "...");
+        assert_eq!(truncate_string("hello", 2), "..");
+        assert_eq!(truncate_string("hello", 1), ".");
+    }
+
+    #[test]
+    fn test_truncate_multibyte_utf8() {
+        // Should not panic on multi-byte chars
+        let s = "héllo wörld";
+        let result = truncate_string(s, 6);
+        assert!(result.len() <= 9); // byte len, not char len
+        assert!(result.ends_with("..."));
     }
 }

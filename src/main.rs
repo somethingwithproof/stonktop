@@ -18,7 +18,7 @@ use app::App;
 use cli::Args;
 use config::Config;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -151,7 +151,7 @@ async fn run_app(
                         _ => {}
                     }
                 } else {
-                    handle_key_event(app, key.code, key.modifiers);
+                    app.handle_key_event(key.code, key.modifiers);
                 }
             }
         }
@@ -168,118 +168,4 @@ async fn run_app(
     }
 
     Ok(())
-}
-
-/// Handle keyboard input.
-fn handle_key_event(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
-    // Close detail view on any key
-    if app.show_detail {
-        app.show_detail = false;
-        return;
-    }
-
-    // Handle symbol input mode
-    if app.input_mode == app::InputMode::AddSymbol {
-        match code {
-            KeyCode::Enter => {
-                if !app.input_buffer.is_empty() {
-                    let symbol = app.input_buffer.drain(..).collect::<String>();
-                    app.add_symbol(&symbol.to_uppercase());
-                    app.last_refresh = None; // trigger refresh
-                }
-                app.input_mode = app::InputMode::Normal;
-            }
-            KeyCode::Esc => {
-                app.input_buffer.clear();
-                app.input_mode = app::InputMode::Normal;
-            }
-            KeyCode::Backspace => {
-                app.input_buffer.pop();
-            }
-            KeyCode::Char(c) => {
-                app.input_buffer.push(c);
-            }
-            _ => {}
-        }
-        return;
-    }
-
-    // Close help overlay on any key
-    if app.show_help {
-        app.show_help = false;
-        return;
-    }
-
-    // Clear error on any key
-    if app.error.is_some() {
-        app.error = None;
-        return;
-    }
-
-    match code {
-        // Quit
-        KeyCode::Char('q') | KeyCode::Esc => app.quit(),
-        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => app.quit(),
-
-        // Navigation
-        KeyCode::Up | KeyCode::Char('k') => app.select_up(),
-        KeyCode::Down | KeyCode::Char('j') => app.select_down(),
-        KeyCode::Home | KeyCode::Char('g') => app.select_top(),
-        KeyCode::End | KeyCode::Char('G') => app.select_bottom(),
-        KeyCode::PageUp => {
-            for _ in 0..10 {
-                app.select_up();
-            }
-        }
-        KeyCode::PageDown => {
-            for _ in 0..10 {
-                app.select_down();
-            }
-        }
-
-        // Sorting
-        KeyCode::Char('s') => app.next_sort_order(),
-        KeyCode::Char('r') => app.toggle_sort_direction(),
-        KeyCode::Char('1') => app.set_sort_order(models::SortOrder::Symbol),
-        KeyCode::Char('2') => app.set_sort_order(models::SortOrder::Name),
-        KeyCode::Char('3') => app.set_sort_order(models::SortOrder::Price),
-        KeyCode::Char('4') => app.set_sort_order(models::SortOrder::Change),
-        KeyCode::Char('5') => app.set_sort_order(models::SortOrder::ChangePercent),
-        KeyCode::Char('6') => app.set_sort_order(models::SortOrder::Volume),
-        KeyCode::Char('7') => app.set_sort_order(models::SortOrder::MarketCap),
-
-        // Display toggles
-        KeyCode::Char('H') => app.toggle_holdings(),
-        KeyCode::Char('f') => app.toggle_fundamentals(),
-        KeyCode::Char('h') | KeyCode::Char('?') => app.toggle_help(),
-
-        // Symbol management
-        KeyCode::Char('a') => {
-            app.input_mode = app::InputMode::AddSymbol;
-            app.input_buffer.clear();
-        }
-        KeyCode::Char('d') => {
-            if let Some(quote) = app.selected_quote() {
-                let symbol = quote.symbol.clone();
-                app.remove_symbol(&symbol);
-            }
-        }
-
-        // Detail view
-        KeyCode::Enter => app.toggle_detail(),
-
-        // Refresh
-        KeyCode::Char(' ') | KeyCode::Char('R') => {
-            app.last_refresh = None; // Force refresh on next tick
-        }
-
-        // Groups
-        KeyCode::Tab => {
-            if !app.groups.is_empty() {
-                app.active_group = (app.active_group + 1) % app.groups.len();
-            }
-        }
-
-        _ => {}
-    }
 }

@@ -7,6 +7,7 @@ use crate::cli::Args;
 use crate::config::Config;
 use crate::models::{Holding, Quote, SortDirection, SortOrder};
 use anyhow::Result;
+use crossterm::event::{KeyCode, KeyModifiers};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -366,5 +367,343 @@ impl App {
             }
             None => "never".to_string(),
         }
+    }
+
+    /// Handle keyboard input.
+    pub fn handle_key_event(&mut self, code: KeyCode, modifiers: KeyModifiers) {
+        // Close detail view on any key
+        if self.show_detail {
+            self.show_detail = false;
+            return;
+        }
+
+        // Handle symbol input mode
+        if self.input_mode == InputMode::AddSymbol {
+            match code {
+                KeyCode::Enter => {
+                    if !self.input_buffer.is_empty() {
+                        let symbol = self.input_buffer.drain(..).collect::<String>();
+                        self.add_symbol(&symbol.to_uppercase());
+                        self.last_refresh = None; // trigger refresh
+                    }
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Esc => {
+                    self.input_buffer.clear();
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Backspace => {
+                    self.input_buffer.pop();
+                }
+                KeyCode::Char(c) => {
+                    self.input_buffer.push(c);
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        // Close help overlay on any key
+        if self.show_help {
+            self.show_help = false;
+            return;
+        }
+
+        // Clear error on any key
+        if self.error.is_some() {
+            self.error = None;
+            return;
+        }
+
+        match code {
+            // Quit
+            KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => self.quit(),
+
+            // Navigation
+            KeyCode::Up | KeyCode::Char('k') => self.select_up(),
+            KeyCode::Down | KeyCode::Char('j') => self.select_down(),
+            KeyCode::Home | KeyCode::Char('g') => self.select_top(),
+            KeyCode::End | KeyCode::Char('G') => self.select_bottom(),
+            KeyCode::PageUp => {
+                for _ in 0..10 {
+                    self.select_up();
+                }
+            }
+            KeyCode::PageDown => {
+                for _ in 0..10 {
+                    self.select_down();
+                }
+            }
+
+            // Sorting
+            KeyCode::Char('s') => self.next_sort_order(),
+            KeyCode::Char('r') => self.toggle_sort_direction(),
+            KeyCode::Char('1') => self.set_sort_order(SortOrder::Symbol),
+            KeyCode::Char('2') => self.set_sort_order(SortOrder::Name),
+            KeyCode::Char('3') => self.set_sort_order(SortOrder::Price),
+            KeyCode::Char('4') => self.set_sort_order(SortOrder::Change),
+            KeyCode::Char('5') => self.set_sort_order(SortOrder::ChangePercent),
+            KeyCode::Char('6') => self.set_sort_order(SortOrder::Volume),
+            KeyCode::Char('7') => self.set_sort_order(SortOrder::MarketCap),
+
+            // Display toggles
+            KeyCode::Char('H') => self.toggle_holdings(),
+            KeyCode::Char('f') => self.toggle_fundamentals(),
+            KeyCode::Char('h') | KeyCode::Char('?') => self.toggle_help(),
+
+            // Symbol management
+            KeyCode::Char('a') => {
+                self.input_mode = InputMode::AddSymbol;
+                self.input_buffer.clear();
+            }
+            KeyCode::Char('d') => {
+                if let Some(quote) = self.selected_quote() {
+                    let symbol = quote.symbol.clone();
+                    self.remove_symbol(&symbol);
+                }
+            }
+
+            // Detail view
+            KeyCode::Enter => self.toggle_detail(),
+
+            // Refresh
+            KeyCode::Char(' ') | KeyCode::Char('R') => {
+                self.last_refresh = None; // Force refresh on next tick
+            }
+
+            // Groups
+            KeyCode::Tab => {
+                if !self.groups.is_empty() {
+                    self.active_group = (self.active_group + 1) % self.groups.len();
+                }
+            }
+
+            _ => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Args;
+    use crate::config::Config;
+    use crate::models::{Quote, SortOrder};
+    use clap::Parser;
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    fn test_app() -> App {
+        let args = Args::parse_from(["stonktop", "-s", "AAPL,GOOGL", "-b", "-n", "1"]);
+        let config = Config::default();
+        let mut app = App::with_base_url(&args, &config, "http://127.0.0.1:1".to_string()).unwrap();
+        // Seed with test quotes so navigation has something to work with
+        app.quotes = vec![
+            Quote {
+                symbol: "AAPL".into(),
+                name: "Apple".into(),
+                price: 195.0,
+                change: 3.0,
+                change_percent: 1.5,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "GOOGL".into(),
+                name: "Alphabet".into(),
+                price: 140.0,
+                change: -2.0,
+                change_percent: -1.4,
+                ..Quote::default()
+            },
+        ];
+        app
+    }
+
+    #[test]
+    fn test_quit_q() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('q'), KeyModifiers::NONE);
+        assert!(!app.running);
+    }
+
+    #[test]
+    fn test_quit_ctrl_c() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        assert!(!app.running);
+    }
+
+    #[test]
+    fn test_navigation_j_k() {
+        let mut app = test_app();
+        assert_eq!(app.selected, 0);
+        app.handle_key_event(KeyCode::Char('j'), KeyModifiers::NONE);
+        assert_eq!(app.selected, 1);
+        app.handle_key_event(KeyCode::Char('k'), KeyModifiers::NONE);
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn test_navigation_g_and_big_g() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('G'), KeyModifiers::NONE);
+        assert_eq!(app.selected, 1); // last
+        app.handle_key_event(KeyCode::Char('g'), KeyModifiers::NONE);
+        assert_eq!(app.selected, 0); // first
+    }
+
+    #[test]
+    fn test_sort_cycle() {
+        let mut app = test_app();
+        let initial = app.sort_order;
+        app.handle_key_event(KeyCode::Char('s'), KeyModifiers::NONE);
+        assert_ne!(app.sort_order, initial);
+    }
+
+    #[test]
+    fn test_sort_reverse() {
+        let mut app = test_app();
+        let initial = app.sort_direction;
+        app.handle_key_event(KeyCode::Char('r'), KeyModifiers::NONE);
+        assert_ne!(app.sort_direction, initial);
+    }
+
+    #[test]
+    fn test_sort_number_keys() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('3'), KeyModifiers::NONE);
+        assert_eq!(app.sort_order, SortOrder::Price);
+        app.handle_key_event(KeyCode::Char('1'), KeyModifiers::NONE);
+        assert_eq!(app.sort_order, SortOrder::Symbol);
+    }
+
+    #[test]
+    fn test_toggle_holdings() {
+        let mut app = test_app();
+        assert!(!app.show_holdings);
+        app.handle_key_event(KeyCode::Char('H'), KeyModifiers::NONE);
+        assert!(app.show_holdings);
+    }
+
+    #[test]
+    fn test_toggle_help() {
+        let mut app = test_app();
+        assert!(!app.show_help);
+        app.handle_key_event(KeyCode::Char('h'), KeyModifiers::NONE);
+        assert!(app.show_help);
+    }
+
+    #[test]
+    fn test_help_dismissal() {
+        let mut app = test_app();
+        app.show_help = true;
+        app.handle_key_event(KeyCode::Char('x'), KeyModifiers::NONE); // any key
+        assert!(!app.show_help);
+    }
+
+    #[test]
+    fn test_error_dismissal() {
+        let mut app = test_app();
+        app.error = Some("test error".to_string());
+        app.handle_key_event(KeyCode::Char('x'), KeyModifiers::NONE);
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn test_detail_toggle() {
+        let mut app = test_app();
+        assert!(!app.show_detail);
+        app.handle_key_event(KeyCode::Enter, KeyModifiers::NONE);
+        assert!(app.show_detail);
+        // Any key dismisses
+        app.handle_key_event(KeyCode::Char('x'), KeyModifiers::NONE);
+        assert!(!app.show_detail);
+    }
+
+    #[test]
+    fn test_add_symbol_mode() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('a'), KeyModifiers::NONE);
+        assert_eq!(app.input_mode, InputMode::AddSymbol);
+
+        // Type "MSFT"
+        app.handle_key_event(KeyCode::Char('m'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('s'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('f'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('t'), KeyModifiers::NONE);
+        assert_eq!(app.input_buffer, "msft");
+
+        // Enter confirms
+        app.handle_key_event(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(app.input_mode, InputMode::Normal);
+        assert!(app.symbols.contains(&"MSFT".to_string()));
+    }
+
+    #[test]
+    fn test_add_symbol_cancel() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('a'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('x'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(app.input_mode, InputMode::Normal);
+        assert!(app.input_buffer.is_empty());
+    }
+
+    #[test]
+    fn test_remove_symbol() {
+        let mut app = test_app();
+        assert_eq!(app.selected, 0);
+        let initial_count = app.quotes.len();
+        app.handle_key_event(KeyCode::Char('d'), KeyModifiers::NONE);
+        assert_eq!(app.quotes.len(), initial_count - 1);
+    }
+
+    // --- Navigation edge cases ---
+
+    #[test]
+    fn test_select_up_at_zero() {
+        let mut app = test_app();
+        app.selected = 0;
+        app.select_up();
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn test_select_down_at_end() {
+        let mut app = test_app();
+        app.selected = app.quotes.len() - 1;
+        app.select_down();
+        assert_eq!(app.selected, app.quotes.len() - 1);
+    }
+
+    #[test]
+    fn test_select_top_bottom_empty() {
+        let mut app = test_app();
+        app.quotes.clear();
+        app.select_top();
+        assert_eq!(app.selected, 0);
+        app.select_bottom();
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn test_scroll_offset_updates() {
+        let mut app = test_app();
+        app.scroll_offset = 1;
+        app.selected = 1;
+        app.select_up(); // selected=0, should update scroll_offset
+        assert_eq!(app.scroll_offset, 0);
+    }
+
+    // --- Portfolio math edge cases ---
+
+    #[test]
+    fn test_portfolio_zero_holdings() {
+        let mut app = test_app();
+        app.holdings.clear();
+        assert_eq!(app.total_portfolio_value(), 0.0);
+        assert_eq!(app.total_portfolio_cost(), 0.0);
+        assert_eq!(app.total_portfolio_pnl(), 0.0);
+        assert_eq!(app.today_portfolio_change(), 0.0);
     }
 }
