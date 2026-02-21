@@ -234,7 +234,7 @@ impl Config {
 
     /// Save configuration to file.
     /// For when you finally decide to commit to your investment strategy.
-    #[allow(dead_code)] // Config export feature - because backup plans are underrated
+    #[allow(dead_code)] // Used by unit tests; --init uses sample_config() directly
     pub fn save(&self, path: &PathBuf) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| {

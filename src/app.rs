@@ -85,7 +85,7 @@ impl App {
     }
 
     /// Create a new application with a custom API base URL (for testing).
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Used by e2e and unit tests via lib crate
     pub fn with_base_url(args: &Args, config: &Config, base_url: String) -> Result<Self> {
         let client = YahooFinanceClient::with_base_url(args.timeout, base_url)?;
         Self::build(args, config, client)
