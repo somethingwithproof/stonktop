@@ -38,6 +38,25 @@ async fn main() -> Result<()> {
         Config::load_or_default()
     };
 
+    // Handle --init flag
+    if args.init {
+        let path = Config::default_config_path()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
+
+        if path.exists() && !args.force {
+            eprintln!("Config file already exists: {}", path.display());
+            eprintln!("Use --force to overwrite.");
+            std::process::exit(1);
+        }
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, config::sample_config())?;
+        println!("Config file written to: {}", path.display());
+        std::process::exit(0);
+    }
+
     // Create application state
     let mut app = App::new(&args, &config)?;
 
@@ -60,17 +79,17 @@ async fn main() -> Result<()> {
 
     // Run in batch mode or interactive mode
     if app.batch_mode {
-        run_batch(&mut app).await
+        run_batch(&mut app, &args.format).await
     } else {
         run_interactive(&mut app).await
     }
 }
 
 /// Run in batch mode (non-interactive, like top -b).
-async fn run_batch(app: &mut App) -> Result<()> {
+async fn run_batch(app: &mut App, format: &cli::OutputFormat) -> Result<()> {
     loop {
         app.refresh().await?;
-        ui::render_batch(app);
+        ui::render_batch(app, format);
 
         if app.should_quit() {
             break;
@@ -162,6 +181,38 @@ async fn run_app(
 
 /// Handle keyboard input.
 fn handle_key_event(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
+    // Close detail view on any key
+    if app.show_detail {
+        app.show_detail = false;
+        return;
+    }
+
+    // Handle symbol input mode
+    if app.input_mode == app::InputMode::AddSymbol {
+        match code {
+            KeyCode::Enter => {
+                if !app.input_buffer.is_empty() {
+                    let symbol = app.input_buffer.drain(..).collect::<String>();
+                    app.add_symbol(&symbol.to_uppercase());
+                    app.last_refresh = None; // trigger refresh
+                }
+                app.input_mode = app::InputMode::Normal;
+            }
+            KeyCode::Esc => {
+                app.input_buffer.clear();
+                app.input_mode = app::InputMode::Normal;
+            }
+            KeyCode::Backspace => {
+                app.input_buffer.pop();
+            }
+            KeyCode::Char(c) => {
+                app.input_buffer.push(c);
+            }
+            _ => {}
+        }
+        return;
+    }
+
     // Close help overlay on any key
     if app.show_help {
         app.show_help = false;
@@ -210,6 +261,21 @@ fn handle_key_event(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
         KeyCode::Char('H') => app.toggle_holdings(),
         KeyCode::Char('f') => app.toggle_fundamentals(),
         KeyCode::Char('h') | KeyCode::Char('?') => app.toggle_help(),
+
+        // Symbol management
+        KeyCode::Char('a') => {
+            app.input_mode = app::InputMode::AddSymbol;
+            app.input_buffer.clear();
+        }
+        KeyCode::Char('d') => {
+            if let Some(quote) = app.selected_quote() {
+                let symbol = quote.symbol.clone();
+                app.remove_symbol(&symbol);
+            }
+        }
+
+        // Detail view
+        KeyCode::Enter => app.toggle_detail(),
 
         // Refresh
         KeyCode::Char(' ') | KeyCode::Char('R') => {

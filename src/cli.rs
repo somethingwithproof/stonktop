@@ -54,9 +54,29 @@ pub struct Args {
     #[arg(short = 'r', long)]
     pub reverse: bool,
 
+    /// Show only top N symbols
+    #[arg(short = 't', long)]
+    pub top: Option<usize>,
+
+    /// Filter by quote type
+    #[arg(short = 'f', long, value_enum)]
+    pub filter: Option<FilterType>,
+
+    /// Hide summary header
+    #[arg(long)]
+    pub no_header: bool,
+
     /// Show holdings/portfolio view
     #[arg(short = 'H', long)]
     pub holdings: bool,
+
+    /// Currency for display (ISO 4217 code)
+    #[arg(long, default_value = "USD")]
+    pub currency: String,
+
+    /// Enable color output (auto, always, never)
+    #[arg(long, value_enum, default_value = "auto")]
+    pub color: ColorMode,
 
     /// Verbose output - show more details
     #[arg(short = 'v', long)]
@@ -65,6 +85,18 @@ pub struct Args {
     /// API timeout in seconds
     #[arg(long, default_value = "10")]
     pub timeout: u64,
+
+    /// Output format for batch mode (table, json, csv)
+    #[arg(long, value_enum, default_value = "table")]
+    pub format: OutputFormat,
+
+    /// Generate a sample configuration file
+    #[arg(long)]
+    pub init: bool,
+
+    /// Force overwrite existing config file (use with --init)
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Sort field options (similar to top's sort fields).
@@ -101,12 +133,71 @@ impl From<SortField> for crate::models::SortOrder {
     }
 }
 
+/// Filter options for quote types.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum FilterType {
+    /// Show only stocks
+    Stocks,
+    /// Show only cryptocurrencies
+    Crypto,
+    /// Show only ETFs
+    Etf,
+    /// Show only indices
+    Index,
+}
+
+/// Color output mode.
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum ColorMode {
+    /// Automatically detect terminal capabilities
+    #[default]
+    Auto,
+    /// Always use colors
+    Always,
+    /// Never use colors
+    Never,
+}
+
+/// Output format for batch mode.
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum OutputFormat {
+    /// Classic table layout (default)
+    #[default]
+    Table,
+    /// JSON output for programmatic consumption
+    Json,
+    /// CSV output for spreadsheet warriors
+    Csv,
+}
+
 impl Args {
     /// Parse command line arguments.
     /// Where your journey to financial enlightenment begins.
     pub fn parse_args() -> Self {
         Args::parse()
     }
+
+    /// Check if colors should be enabled.
+    /// Because red and green are the only colors that matter in finance.
+    #[allow(dead_code)] // Reserved for when we implement --no-feelings mode
+    pub fn use_colors(&self) -> bool {
+        match self.color {
+            ColorMode::Always => true,
+            ColorMode::Never => false,
+            ColorMode::Auto => {
+                // Check if stdout is a terminal
+                atty_check()
+            }
+        }
+    }
+}
+
+/// Check if stdout is a terminal.
+/// Spoiler: it probably is, unless you're piping your tears to /dev/null.
+#[allow(dead_code)] // Used by use_colors which is reserved for future features
+fn atty_check() -> bool {
+    // Simple check - in production you might use the `atty` crate
+    std::env::var("TERM").is_ok()
 }
 
 #[cfg(test)]
