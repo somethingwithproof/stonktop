@@ -38,6 +38,11 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
  q:quit h:help s:sort r:reverse H:holdings f:fundamentals | Quotes | CHG% ▼ | Iter: 1
 ```
 
+## Prerequisites
+
+- **Rust**: Version 1.86 or higher (MSRV)
+- **Cargo**: Included with Rust installation
+
 ## Installation
 
 ### From crates.io (Recommended)
@@ -69,15 +74,6 @@ Available platforms:
 git clone https://github.com/thomasvincent/stonktop.git
 cd stonktop
 cargo build --release
-```
-
-The binary will be at `target/release/stonktop`.
-
-### For Development
-
-```bash
-git clone https://github.com/thomasvincent/stonktop.git
-cd stonktop
 cargo install --path .
 ```
 
@@ -239,29 +235,46 @@ crypto = ["BTC-USD", "ETH-USD", "SOL-USD"]
 
 Stonktop uses the Yahoo Finance API to fetch real-time quotes. No API key is required.
 
-## Building
+## Development
 
-### Requirements
-
-- Rust 1.86 or later
-- Cargo
-
-### Development Build
+### Build
 
 ```bash
+# Debug build
 cargo build
-```
 
-### Release Build
-
-```bash
+# Release build
 cargo build --release
 ```
 
-### Running Tests
+### Test
 
 ```bash
+# Run all tests
 cargo test
+
+# Run tests with output
+cargo test -- --nocapture
+```
+
+### Lint
+
+```bash
+# Check for linting issues
+cargo clippy --all-targets --all-features
+
+# Apply automatic fixes
+cargo clippy --fix --allow-dirty
+```
+
+### Format
+
+```bash
+# Check formatting
+cargo fmt -- --check
+
+# Apply formatting
+cargo fmt
 ```
 
 ## Contributing
