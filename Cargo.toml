@@ -29,7 +29,7 @@ ratatui = "0.30"
 crossterm = "0.29"
 
 # Async runtime
-tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1.50", features = ["rt-multi-thread", "macros", "time"] }
 futures-util = "0.3"
 
 # HTTP client
