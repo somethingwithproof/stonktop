@@ -203,6 +203,21 @@ impl SortOrder {
     }
 }
 
+/// Port: abstraction for fetching quotes from any data source.
+/// Implement this trait to plug in Yahoo Finance, Alpaca, Coinbase, mocks, etc.
+#[async_trait::async_trait]
+pub trait QuoteProvider: Send + Sync {
+    async fn get_quotes(&self, symbols: &[String]) -> anyhow::Result<Vec<Quote>>;
+}
+
+/// Alert threshold for a symbol.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Alert {
+    pub symbol: String,
+    pub above: Option<f64>,
+    pub below: Option<f64>,
+}
+
 /// Sort direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SortDirection {

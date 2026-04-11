@@ -2,10 +2,10 @@
 //!
 //! Because checking your portfolio every 5 seconds is totally healthy behavior.
 
-use crate::models::{MarketState, Quote, QuoteType};
+use crate::models::{MarketState, Quote, QuoteProvider, QuoteType};
 use anyhow::{Context, Result};
 use chrono::{TimeZone, Utc};
-use futures_util::{stream, StreamExt};
+use futures_util::future::join_all;
 use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
@@ -29,7 +29,6 @@ fn is_valid_symbol(symbol: &str) -> bool {
 /// Your gateway to financial anxiety delivered in JSON format.
 pub struct YahooFinanceClient {
     client: Client,
-    timeout: Duration,
     base_url: String,
 }
 
@@ -49,36 +48,7 @@ impl YahooFinanceClient {
             .build()
             .context("Failed to create HTTP client")?;
 
-        Ok(Self {
-            client,
-            timeout: Duration::from_secs(timeout_secs),
-            base_url,
-        })
-    }
-
-    /// Fetch quotes for multiple symbols using parallel requests.
-    /// Yahoo's v8 chart API only supports one symbol at a time, so we parallelize.
-    pub async fn get_quotes(&self, symbols: &[String]) -> Result<Vec<Quote>> {
-        if symbols.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Fetch symbols with bounded concurrency to avoid hammering Yahoo's rate limits.
-        let results: Vec<_> =
-            stream::iter(symbols.iter().map(|symbol| self.fetch_single_quote(symbol)))
-                .buffer_unordered(10)
-                .collect()
-                .await;
-
-        // Return an error only if every request failed; partial success is acceptable.
-        let (successes, errors): (Vec<_>, Vec<_>) = results.into_iter().partition(Result::is_ok);
-        let quotes: Vec<Quote> = successes.into_iter().filter_map(Result::ok).collect();
-
-        if quotes.is_empty() && !errors.is_empty() {
-            return Err(errors.into_iter().find_map(Result::err).unwrap());
-        }
-
-        Ok(quotes)
+        Ok(Self { client, base_url })
     }
 
     /// Fetch a single quote from the v8 chart API.
@@ -94,7 +64,6 @@ impl YahooFinanceClient {
         let response = self
             .client
             .get(&url)
-            .timeout(self.timeout)
             .send()
             .await
             .with_context(|| format!("Failed to fetch quote for {}", symbol))?;
@@ -131,6 +100,38 @@ impl YahooFinanceClient {
     #[allow(dead_code)] // Reserved for future regret-checking functionality
     pub async fn get_quote(&self, symbol: &str) -> Result<Quote> {
         self.fetch_single_quote(symbol).await
+    }
+}
+
+#[async_trait::async_trait]
+impl QuoteProvider for YahooFinanceClient {
+    async fn get_quotes(&self, symbols: &[String]) -> Result<Vec<Quote>> {
+        if symbols.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut quotes = Vec::new();
+        let mut last_err = None;
+
+        // Fetch with bounded concurrency using join_all batches
+        for chunk in symbols.chunks(10) {
+            let futures: Vec<_> = chunk.iter().map(|s| self.fetch_single_quote(s)).collect();
+            let results = join_all(futures).await;
+            for result in results {
+                match result {
+                    Ok(q) => quotes.push(q),
+                    Err(e) => last_err = Some(e),
+                }
+            }
+        }
+
+        if quotes.is_empty() {
+            if let Some(e) = last_err {
+                return Err(e);
+            }
+        }
+
+        Ok(quotes)
     }
 }
 
@@ -192,6 +193,8 @@ struct ChartMeta {
     instrument_type: Option<String>,
     #[serde(default)]
     regular_market_time: Option<i64>,
+    #[serde(default)]
+    market_state: Option<String>,
 }
 
 impl ChartResult {
@@ -230,12 +233,22 @@ impl ChartResult {
             currency: meta.currency.unwrap_or_else(|| "USD".to_string()),
             exchange: meta.exchange_name.unwrap_or_default(),
             quote_type: parse_quote_type(meta.instrument_type.as_deref()),
-            market_state: MarketState::Closed, // Would need separate call to determine
+            market_state: parse_market_state(meta.market_state.as_deref()),
             timestamp: meta
                 .regular_market_time
                 .and_then(|t| Utc.timestamp_opt(t, 0).single())
                 .unwrap_or_else(Utc::now),
         }
+    }
+}
+
+fn parse_market_state(s: Option<&str>) -> MarketState {
+    match s {
+        Some("PRE") | Some("PREPRE") => MarketState::Pre,
+        Some("REGULAR") => MarketState::Regular,
+        Some("POST") | Some("POSTPOST") => MarketState::Post,
+        Some("CLOSED") | None => MarketState::Closed,
+        _ => MarketState::Closed,
     }
 }
 
@@ -253,30 +266,48 @@ fn parse_quote_type(s: Option<&str>) -> QuoteType {
     }
 }
 
-/// Symbol shortcuts for common cryptocurrencies.
-/// Because typing "-USD" is too much work for crypto bros.
+/// Built-in symbol shortcuts for common cryptocurrencies.
+const BUILTIN_SHORTCUTS: &[(&str, &str)] = &[
+    ("BTC", "BTC-USD"),
+    ("ETH", "ETH-USD"),
+    ("SOL", "SOL-USD"),
+    ("ADA", "ADA-USD"),
+    ("DOT", "DOT-USD"),
+    ("DOGE", "DOGE-USD"),
+    ("XRP", "XRP-USD"),
+    ("AVAX", "AVAX-USD"),
+    ("MATIC", "MATIC-USD"),
+    ("LINK", "LINK-USD"),
+    ("UNI", "UNI-USD"),
+    ("ATOM", "ATOM-USD"),
+    ("LTC", "LTC-USD"),
+];
+
+/// Expand a symbol using custom shortcuts first, then built-in defaults.
+pub fn expand_symbol_with(
+    symbol: &str,
+    custom: &std::collections::HashMap<String, String>,
+) -> String {
+    // Custom shortcuts take priority
+    if let Some(expanded) = custom.get(symbol) {
+        return expanded.clone();
+    }
+    expand_symbol(symbol)
+}
+
+/// Expand a symbol using built-in shortcuts only.
 pub fn expand_symbol(symbol: &str) -> String {
     // Handle shorthand crypto symbols like "BTC.X" -> "BTC-USD"
     if let Some(base) = symbol.strip_suffix(".X") {
         return format!("{base}-USD");
     }
 
-    match symbol {
-        "BTC" => "BTC-USD".to_string(),
-        "ETH" => "ETH-USD".to_string(),
-        "SOL" => "SOL-USD".to_string(),
-        "ADA" => "ADA-USD".to_string(),
-        "DOT" => "DOT-USD".to_string(),
-        "DOGE" => "DOGE-USD".to_string(),
-        "XRP" => "XRP-USD".to_string(),
-        "AVAX" => "AVAX-USD".to_string(),
-        "MATIC" => "MATIC-USD".to_string(),
-        "LINK" => "LINK-USD".to_string(),
-        "UNI" => "UNI-USD".to_string(),
-        "ATOM" => "ATOM-USD".to_string(),
-        "LTC" => "LTC-USD".to_string(),
-        _ => symbol.to_string(),
+    for (short, full) in BUILTIN_SHORTCUTS {
+        if symbol == *short {
+            return (*full).to_string();
+        }
     }
+    symbol.to_string()
 }
 
 #[cfg(test)]
@@ -387,5 +418,93 @@ mod tests {
     fn test_expand_symbol_stock() {
         assert_eq!(expand_symbol("AAPL"), "AAPL");
         assert_eq!(expand_symbol("GOOGL"), "GOOGL");
+    }
+
+    // --- expand_symbol_with tests (custom shortcuts) ---
+
+    #[test]
+    fn test_expand_symbol_with_custom_shortcut() {
+        let mut custom = std::collections::HashMap::new();
+        custom.insert("PEPE".to_string(), "PEPE-USD".to_string());
+        custom.insert("SHIB".to_string(), "SHIB-USD".to_string());
+        assert_eq!(expand_symbol_with("PEPE", &custom), "PEPE-USD");
+        assert_eq!(expand_symbol_with("SHIB", &custom), "SHIB-USD");
+    }
+
+    #[test]
+    fn test_expand_symbol_with_custom_overrides_builtin() {
+        let mut custom = std::collections::HashMap::new();
+        // Override built-in BTC -> BTC-USD with custom BTC -> BTC-EUR
+        custom.insert("BTC".to_string(), "BTC-EUR".to_string());
+        assert_eq!(expand_symbol_with("BTC", &custom), "BTC-EUR");
+    }
+
+    #[test]
+    fn test_expand_symbol_with_falls_back_to_builtin() {
+        let custom = std::collections::HashMap::new();
+        // No custom shortcuts; should fall back to built-in
+        assert_eq!(expand_symbol_with("BTC", &custom), "BTC-USD");
+        assert_eq!(expand_symbol_with("ETH", &custom), "ETH-USD");
+    }
+
+    #[test]
+    fn test_expand_symbol_with_passthrough() {
+        let custom = std::collections::HashMap::new();
+        // Unknown symbol passes through unchanged
+        assert_eq!(expand_symbol_with("AAPL", &custom), "AAPL");
+    }
+
+    // --- parse_market_state tests ---
+
+    #[test]
+    fn test_parse_market_state_pre() {
+        assert_eq!(parse_market_state(Some("PRE")), MarketState::Pre);
+        assert_eq!(parse_market_state(Some("PREPRE")), MarketState::Pre);
+    }
+
+    #[test]
+    fn test_parse_market_state_regular() {
+        assert_eq!(parse_market_state(Some("REGULAR")), MarketState::Regular);
+    }
+
+    #[test]
+    fn test_parse_market_state_post() {
+        assert_eq!(parse_market_state(Some("POST")), MarketState::Post);
+        assert_eq!(parse_market_state(Some("POSTPOST")), MarketState::Post);
+    }
+
+    #[test]
+    fn test_parse_market_state_closed() {
+        assert_eq!(parse_market_state(Some("CLOSED")), MarketState::Closed);
+        assert_eq!(parse_market_state(None), MarketState::Closed);
+    }
+
+    #[test]
+    fn test_parse_market_state_unknown() {
+        assert_eq!(parse_market_state(Some("HALTED")), MarketState::Closed);
+        assert_eq!(parse_market_state(Some("")), MarketState::Closed);
+    }
+
+    // --- parse_quote_type tests ---
+
+    #[test]
+    fn test_parse_quote_type_all_variants() {
+        assert_eq!(parse_quote_type(Some("EQUITY")), QuoteType::Equity);
+        assert_eq!(
+            parse_quote_type(Some("CRYPTOCURRENCY")),
+            QuoteType::Cryptocurrency
+        );
+        assert_eq!(parse_quote_type(Some("ETF")), QuoteType::Etf);
+        assert_eq!(parse_quote_type(Some("MUTUALFUND")), QuoteType::MutualFund);
+        assert_eq!(parse_quote_type(Some("INDEX")), QuoteType::Index);
+        assert_eq!(parse_quote_type(Some("CURRENCY")), QuoteType::Currency);
+        assert_eq!(parse_quote_type(Some("FUTURE")), QuoteType::Future);
+        assert_eq!(parse_quote_type(Some("OPTION")), QuoteType::Option);
+    }
+
+    #[test]
+    fn test_parse_quote_type_unknown_defaults_equity() {
+        assert_eq!(parse_quote_type(None), QuoteType::Equity);
+        assert_eq!(parse_quote_type(Some("UNKNOWN")), QuoteType::Equity);
     }
 }

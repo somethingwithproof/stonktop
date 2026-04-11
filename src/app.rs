@@ -2,22 +2,22 @@
 //!
 //! Where we keep track of your hopes, dreams, and unrealized losses.
 
-use crate::api::{expand_symbol, YahooFinanceClient};
+use crate::api::{expand_symbol_with, YahooFinanceClient};
 use crate::cli::Args;
 use crate::config::Config;
-use crate::models::{Holding, Quote, SortDirection, SortOrder};
+use crate::models::{Alert, Holding, Quote, QuoteProvider, SortDirection, SortOrder};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 /// Input mode for interactive commands.
-/// Normal is for watching numbers move. AddSymbol is for adding more numbers to watch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InputMode {
     #[default]
     Normal,
     AddSymbol,
+    Search,
 }
 
 /// Application state.
@@ -29,8 +29,8 @@ pub struct App {
     pub holdings: HashMap<String, Holding>,
     /// Symbols being watched
     pub symbols: Vec<String>,
-    /// API client
-    client: YahooFinanceClient,
+    /// API client (port — any QuoteProvider impl)
+    client: Box<dyn QuoteProvider>,
     /// Last refresh time
     pub last_refresh: Option<Instant>,
     /// Refresh interval
@@ -63,8 +63,10 @@ pub struct App {
     pub secure_mode: bool,
     /// Active group index
     pub active_group: usize,
-    /// Group names
+    /// Group names ("All" is prepended automatically)
     pub groups: Vec<String>,
+    /// Group symbol lists (index matches groups; index 0 = all symbols)
+    pub group_symbols: Vec<Vec<String>>,
     /// Verbose mode - for when you want MORE numbers to stress about
     pub verbose: bool,
     /// Color mode preference
@@ -75,28 +77,55 @@ pub struct App {
     pub input_buffer: String,
     /// Show detail popup for selected quote
     pub show_detail: bool,
+    /// Color configuration from config file
+    pub color_config: crate::config::ColorConfig,
+    /// Search/filter string
+    pub search_filter: String,
+    /// Price alerts
+    pub alerts: Vec<Alert>,
+    /// Triggered alerts (symbol, message)
+    pub triggered_alerts: Vec<(String, String)>,
+    /// Config file path for persistent saves
+    pub config_path: Option<std::path::PathBuf>,
+    /// Configurable crypto shortcuts from config
+    pub crypto_shortcuts: HashMap<String, String>,
 }
 
 impl App {
     /// Create a new application from CLI args and config.
     pub fn new(args: &Args, config: &Config) -> Result<Self> {
         let client = YahooFinanceClient::new(args.timeout)?;
-        Self::build(args, config, client)
+        Self::build(args, config, Box::new(client))
     }
 
     /// Create a new application with a custom API base URL (for testing).
     #[allow(dead_code)] // Used by e2e and unit tests via lib crate
     pub fn with_base_url(args: &Args, config: &Config, base_url: String) -> Result<Self> {
         let client = YahooFinanceClient::with_base_url(args.timeout, base_url)?;
+        Self::build(args, config, Box::new(client))
+    }
+
+    /// Create a new application with a custom QuoteProvider (for testing/plugins).
+    #[allow(dead_code)]
+    pub fn with_provider(
+        args: &Args,
+        config: &Config,
+        client: Box<dyn QuoteProvider>,
+    ) -> Result<Self> {
         Self::build(args, config, client)
     }
 
-    fn build(args: &Args, config: &Config, client: YahooFinanceClient) -> Result<Self> {
+    fn build(args: &Args, config: &Config, client: Box<dyn QuoteProvider>) -> Result<Self> {
+        let custom_shortcuts = config.shortcuts.clone();
+
         // Merge symbols from args and config
         let mut symbols: Vec<String> = args.symbols.clone().unwrap_or_else(|| config.all_symbols());
 
-        // Expand symbol shortcuts
-        symbols = symbols.into_iter().map(|s| expand_symbol(&s)).collect();
+        // Expand symbol shortcuts (custom first, then built-in)
+        symbols = symbols
+            .into_iter()
+            .map(|s| expand_symbol_with(&s, &custom_shortcuts))
+            .collect();
 
         // Remove duplicates while preserving order
         let mut seen = std::collections::HashSet::new();
@@ -106,11 +135,31 @@ impl App {
         let holdings: HashMap<String, Holding> = config
             .get_holdings()
             .into_iter()
-            .map(|h| (expand_symbol(&h.symbol), h))
+            .map(|h| (expand_symbol_with(&h.symbol, &custom_shortcuts), h))
             .collect();
 
-        // Get groups
-        let groups: Vec<String> = config.groups.keys().cloned().collect();
+        // Build groups: first entry is "All", then each config group
+        let mut groups = vec!["All".to_string()];
+        let mut group_symbols: Vec<Vec<String>> = vec![symbols.clone()];
+        for (name, syms) in &config.groups {
+            groups.push(name.clone());
+            group_symbols.push(
+                syms.iter()
+                    .map(|s| expand_symbol_with(s, &custom_shortcuts))
+                    .collect(),
+            );
+        }
+
+        // Build alerts
+        let alerts: Vec<Alert> = config
+            .alerts
+            .iter()
+            .map(|a| Alert {
+                symbol: expand_symbol_with(&a.symbol, &custom_shortcuts),
+                above: a.above,
+                below: a.below,
+            })
+            .collect();
         // Enforce minimum refresh interval of 1.0 second
         let delay = if args.delay < 1.0 { 1.0 } else { args.delay };
 
@@ -140,11 +189,18 @@ impl App {
             secure_mode: args.secure,
             active_group: 0,
             groups,
+            group_symbols,
             verbose: args.verbose,
-            color_mode: crate::cli::ColorMode::default(),
+            color_mode: args.color,
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             show_detail: false,
+            color_config: config.colors.clone(),
+            search_filter: String::new(),
+            alerts,
+            triggered_alerts: Vec::new(),
+            config_path: Config::default_config_path(),
+            crypto_shortcuts: custom_shortcuts,
         })
     }
 
@@ -166,6 +222,7 @@ impl App {
             Ok(quotes) => {
                 self.quotes = quotes;
                 self.sort_quotes();
+                self.check_alerts();
                 self.last_refresh = Some(Instant::now());
                 self.iteration += 1;
                 self.error = None;
@@ -244,8 +301,14 @@ impl App {
 
     /// Move selection down.
     pub fn select_down(&mut self) {
-        if self.selected < self.quotes.len().saturating_sub(1) {
+        let max = self.visible_quotes().len().saturating_sub(1);
+        if self.selected < max {
             self.selected += 1;
+            // Keep the selected row visible (assume ~20 visible rows)
+            let visible_rows = 20usize;
+            if self.selected >= self.scroll_offset + visible_rows {
+                self.scroll_offset = self.selected - visible_rows + 1;
+            }
         }
     }
 
@@ -257,7 +320,7 @@ impl App {
 
     /// Move selection to bottom.
     pub fn select_bottom(&mut self) {
-        self.selected = self.quotes.len().saturating_sub(1);
+        self.selected = self.visible_quotes().len().saturating_sub(1);
     }
 
     /// Toggle help display.
@@ -329,18 +392,16 @@ impl App {
     }
 
     /// Add a symbol to watch.
-    /// For when FOMO hits and you need to track one more meme stock.
     pub fn add_symbol(&mut self, symbol: &str) {
-        let expanded = expand_symbol(symbol);
+        let expanded = expand_symbol_with(symbol, &self.crypto_shortcuts);
         if !self.symbols.contains(&expanded) {
             self.symbols.push(expanded);
         }
     }
 
     /// Remove a symbol from watch.
-    /// Denial is the first stage of grief. Removing it from your watchlist is the second.
     pub fn remove_symbol(&mut self, symbol: &str) {
-        let expanded = expand_symbol(symbol);
+        let expanded = expand_symbol_with(symbol, &self.crypto_shortcuts);
         self.symbols.retain(|s| s != &expanded);
         self.quotes.retain(|q| q.symbol != expanded);
         if self.selected >= self.quotes.len() {
@@ -348,10 +409,86 @@ impl App {
         }
     }
 
-    /// Get the currently selected quote.
+    /// Get quotes filtered by the active group and search filter.
+    pub fn visible_quotes(&self) -> Vec<&Quote> {
+        let base: Vec<&Quote> =
+            if self.active_group == 0 || self.active_group >= self.group_symbols.len() {
+                self.quotes.iter().collect()
+            } else {
+                let group_syms = &self.group_symbols[self.active_group];
+                self.quotes
+                    .iter()
+                    .filter(|q| group_syms.contains(&q.symbol))
+                    .collect()
+            };
+
+        if self.search_filter.is_empty() {
+            base
+        } else {
+            let filter = self.search_filter.to_uppercase();
+            base.into_iter()
+                .filter(|q| q.symbol.contains(&filter) || q.name.to_uppercase().contains(&filter))
+                .collect()
+        }
+    }
+
+    /// Get the currently selected quote (from visible quotes).
     /// Returns the quote you're currently staring at in disbelief.
     pub fn selected_quote(&self) -> Option<&Quote> {
-        self.quotes.get(self.selected)
+        let visible = self.visible_quotes();
+        visible.get(self.selected).copied()
+    }
+
+    /// Get the active group name.
+    pub fn active_group_name(&self) -> &str {
+        self.groups
+            .get(self.active_group)
+            .map_or("All", |s| s.as_str())
+    }
+
+    /// Check price alerts and record any that trigger.
+    fn check_alerts(&mut self) {
+        self.triggered_alerts.clear();
+        for alert in &self.alerts {
+            if let Some(quote) = self.quotes.iter().find(|q| q.symbol == alert.symbol) {
+                if let Some(above) = alert.above {
+                    if quote.price >= above {
+                        self.triggered_alerts.push((
+                            alert.symbol.clone(),
+                            format!("{} above ${:.2} (${:.2})", alert.symbol, above, quote.price),
+                        ));
+                    }
+                }
+                if let Some(below) = alert.below {
+                    if quote.price <= below {
+                        self.triggered_alerts.push((
+                            alert.symbol.clone(),
+                            format!("{} below ${:.2} (${:.2})", alert.symbol, below, quote.price),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Save current watchlist to config file.
+    pub fn save_watchlist(&self) -> Result<()> {
+        let path = match &self.config_path {
+            Some(p) => p.clone(),
+            None => return Ok(()),
+        };
+        if !path.exists() {
+            return Ok(()); // Don't create config if it doesn't exist
+        }
+        let content = std::fs::read_to_string(&path)?;
+        let mut config: Config = toml::from_str(&content)?;
+        config.watchlist.symbols = self.symbols.clone();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let serialized = toml::to_string_pretty(&config)?;
+        std::fs::write(&path, serialized)?;
+        Ok(())
     }
 
     /// Get time since last refresh as human readable string.
@@ -374,6 +511,30 @@ impl App {
         // Close detail view on any key
         if self.show_detail {
             self.show_detail = false;
+            return;
+        }
+
+        // Handle search mode
+        if self.input_mode == InputMode::Search {
+            match code {
+                KeyCode::Enter | KeyCode::Esc => {
+                    if code == KeyCode::Esc {
+                        self.search_filter.clear();
+                    }
+                    self.input_mode = InputMode::Normal;
+                    self.selected = 0;
+                    self.scroll_offset = 0;
+                }
+                KeyCode::Backspace => {
+                    self.search_filter.pop();
+                    self.selected = 0;
+                }
+                KeyCode::Char(c) => {
+                    self.search_filter.push(c);
+                    self.selected = 0;
+                }
+                _ => {}
+            }
             return;
         }
 
@@ -464,6 +625,12 @@ impl App {
                 }
             }
 
+            // Search/filter
+            KeyCode::Char('/') => {
+                self.input_mode = InputMode::Search;
+                self.search_filter.clear();
+            }
+
             // Detail view
             KeyCode::Enter => self.toggle_detail(),
 
@@ -474,8 +641,10 @@ impl App {
 
             // Groups
             KeyCode::Tab => {
-                if !self.groups.is_empty() {
+                if self.groups.len() > 1 {
                     self.active_group = (self.active_group + 1) % self.groups.len();
+                    self.selected = 0;
+                    self.scroll_offset = 0;
                 }
             }
 
@@ -705,5 +874,343 @@ mod tests {
         assert_eq!(app.total_portfolio_cost(), 0.0);
         assert_eq!(app.total_portfolio_pnl(), 0.0);
         assert_eq!(app.today_portfolio_change(), 0.0);
+    }
+
+    // --- Search / filter tests ---
+
+    #[test]
+    fn test_search_mode_enter() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE);
+        assert_eq!(app.input_mode, InputMode::Search);
+        assert!(app.search_filter.is_empty());
+    }
+
+    #[test]
+    fn test_search_mode_type_and_filter() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE);
+
+        // Type "goo"
+        app.handle_key_event(KeyCode::Char('g'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('o'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('o'), KeyModifiers::NONE);
+
+        assert_eq!(app.search_filter, "goo");
+
+        // visible_quotes should filter to GOOGL only (case-insensitive match on name "Alphabet" won't match,
+        // but symbol "GOOGL" doesn't match "goo" either... let's check)
+        // Actually "GOOGL".contains("GOO") = true (filter is uppercased)
+        let visible = app.visible_quotes();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].symbol, "GOOGL");
+    }
+
+    #[test]
+    fn test_search_mode_backspace() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('x'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('y'), KeyModifiers::NONE);
+        assert_eq!(app.search_filter, "xy");
+        app.handle_key_event(KeyCode::Backspace, KeyModifiers::NONE);
+        assert_eq!(app.search_filter, "x");
+    }
+
+    #[test]
+    fn test_search_mode_escape_clears() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('a'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Esc, KeyModifiers::NONE);
+
+        assert_eq!(app.input_mode, InputMode::Normal);
+        assert!(
+            app.search_filter.is_empty(),
+            "Esc should clear search filter"
+        );
+    }
+
+    #[test]
+    fn test_search_mode_enter_keeps_filter() {
+        let mut app = test_app();
+        app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Char('a'), KeyModifiers::NONE);
+        app.handle_key_event(KeyCode::Enter, KeyModifiers::NONE);
+
+        assert_eq!(app.input_mode, InputMode::Normal);
+        assert_eq!(
+            app.search_filter, "a",
+            "Enter should keep the filter active"
+        );
+    }
+
+    #[test]
+    fn test_search_filter_by_name() {
+        let mut app = test_app();
+        // Filter by name "Alpha" (Alphabet)
+        app.search_filter = "alpha".to_string();
+        let visible = app.visible_quotes();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].symbol, "GOOGL");
+    }
+
+    #[test]
+    fn test_search_filter_no_match() {
+        let mut app = test_app();
+        app.search_filter = "zzzzz".to_string();
+        let visible = app.visible_quotes();
+        assert!(visible.is_empty());
+    }
+
+    // --- Price alerts tests ---
+
+    #[test]
+    fn test_check_alerts_above_triggers() {
+        let mut app = test_app();
+        app.alerts = vec![Alert {
+            symbol: "AAPL".to_string(),
+            above: Some(190.0), // AAPL price is 195.0
+            below: None,
+        }];
+        app.check_alerts();
+        assert_eq!(app.triggered_alerts.len(), 1);
+        assert!(app.triggered_alerts[0].1.contains("above"));
+    }
+
+    #[test]
+    fn test_check_alerts_below_triggers() {
+        let mut app = test_app();
+        app.alerts = vec![Alert {
+            symbol: "GOOGL".to_string(),
+            above: None,
+            below: Some(150.0), // GOOGL price is 140.0
+        }];
+        app.check_alerts();
+        assert_eq!(app.triggered_alerts.len(), 1);
+        assert!(app.triggered_alerts[0].1.contains("below"));
+    }
+
+    #[test]
+    fn test_check_alerts_no_trigger() {
+        let mut app = test_app();
+        app.alerts = vec![Alert {
+            symbol: "AAPL".to_string(),
+            above: Some(300.0), // AAPL is 195, won't trigger
+            below: Some(100.0), // AAPL is 195, won't trigger
+        }];
+        app.check_alerts();
+        assert!(app.triggered_alerts.is_empty());
+    }
+
+    #[test]
+    fn test_check_alerts_both_directions() {
+        let mut app = test_app();
+        app.alerts = vec![
+            Alert {
+                symbol: "AAPL".to_string(),
+                above: Some(190.0),
+                below: None,
+            },
+            Alert {
+                symbol: "GOOGL".to_string(),
+                above: None,
+                below: Some(150.0),
+            },
+        ];
+        app.check_alerts();
+        assert_eq!(app.triggered_alerts.len(), 2);
+    }
+
+    #[test]
+    fn test_check_alerts_unknown_symbol_ignored() {
+        let mut app = test_app();
+        app.alerts = vec![Alert {
+            symbol: "ZZZZ".to_string(),
+            above: Some(1.0),
+            below: None,
+        }];
+        app.check_alerts();
+        assert!(app.triggered_alerts.is_empty());
+    }
+
+    // --- Group cycling tests ---
+
+    #[test]
+    fn test_group_cycling_with_tab() {
+        let mut app = test_app();
+        app.groups = vec!["All".to_string(), "tech".to_string(), "crypto".to_string()];
+        app.group_symbols = vec![
+            vec!["AAPL".to_string(), "GOOGL".to_string()],
+            vec!["AAPL".to_string()],
+            vec!["BTC-USD".to_string()],
+        ];
+        assert_eq!(app.active_group, 0);
+        assert_eq!(app.active_group_name(), "All");
+
+        app.handle_key_event(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(app.active_group, 1);
+        assert_eq!(app.active_group_name(), "tech");
+
+        app.handle_key_event(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(app.active_group, 2);
+        assert_eq!(app.active_group_name(), "crypto");
+
+        // Wraps around
+        app.handle_key_event(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(app.active_group, 0);
+        assert_eq!(app.active_group_name(), "All");
+    }
+
+    #[test]
+    fn test_group_cycling_resets_selection() {
+        let mut app = test_app();
+        app.groups = vec!["All".to_string(), "tech".to_string()];
+        app.group_symbols = vec![
+            vec!["AAPL".to_string(), "GOOGL".to_string()],
+            vec!["AAPL".to_string()],
+        ];
+        app.selected = 1;
+        app.scroll_offset = 1;
+
+        app.handle_key_event(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(app.selected, 0);
+        assert_eq!(app.scroll_offset, 0);
+    }
+
+    #[test]
+    fn test_visible_quotes_group_filter() {
+        let mut app = test_app();
+        app.groups = vec!["All".to_string(), "just_apple".to_string()];
+        app.group_symbols = vec![
+            vec!["AAPL".to_string(), "GOOGL".to_string()],
+            vec!["AAPL".to_string()],
+        ];
+        // All group
+        assert_eq!(app.visible_quotes().len(), 2);
+
+        // Switch to just_apple group
+        app.active_group = 1;
+        let visible = app.visible_quotes();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].symbol, "AAPL");
+    }
+
+    // --- Fundamentals toggle ---
+
+    #[test]
+    fn test_toggle_fundamentals() {
+        let mut app = test_app();
+        assert!(!app.show_fundamentals);
+        app.handle_key_event(KeyCode::Char('f'), KeyModifiers::NONE);
+        assert!(app.show_fundamentals);
+        app.handle_key_event(KeyCode::Char('f'), KeyModifiers::NONE);
+        assert!(!app.show_fundamentals);
+    }
+
+    // --- Secure mode restrictions ---
+
+    #[test]
+    fn test_secure_mode_blocks_toggles() {
+        let mut app = test_app();
+        app.secure_mode = true;
+        app.handle_key_event(KeyCode::Char('h'), KeyModifiers::NONE);
+        assert!(!app.show_help, "secure mode should block help toggle");
+        app.handle_key_event(KeyCode::Char('H'), KeyModifiers::NONE);
+        assert!(
+            !app.show_holdings,
+            "secure mode should block holdings toggle"
+        );
+        app.handle_key_event(KeyCode::Char('f'), KeyModifiers::NONE);
+        assert!(
+            !app.show_fundamentals,
+            "secure mode should block fundamentals toggle"
+        );
+    }
+
+    // --- Mock QuoteProvider tests ---
+
+    struct MockProvider {
+        quotes: Vec<Quote>,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::models::QuoteProvider for MockProvider {
+        async fn get_quotes(&self, _symbols: &[String]) -> anyhow::Result<Vec<Quote>> {
+            Ok(self.quotes.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_with_provider_mock() {
+        let mock = MockProvider {
+            quotes: vec![Quote {
+                symbol: "TEST".into(),
+                name: "Test Corp".into(),
+                price: 42.0,
+                change: 2.0,
+                change_percent: 5.0,
+                ..Quote::default()
+            }],
+        };
+
+        let args = Args::parse_from(["stonktop", "-s", "TEST", "-b", "-n", "1"]);
+        let config = Config::default();
+        let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
+
+        app.refresh().await.unwrap();
+
+        assert_eq!(app.quotes.len(), 1);
+        assert_eq!(app.quotes[0].symbol, "TEST");
+        assert!((app.quotes[0].price - 42.0).abs() < f64::EPSILON);
+    }
+
+    #[tokio::test]
+    async fn test_refresh_calls_check_alerts() {
+        let mock = MockProvider {
+            quotes: vec![Quote {
+                symbol: "AAPL".into(),
+                name: "Apple".into(),
+                price: 200.0,
+                ..Quote::default()
+            }],
+        };
+
+        let args = Args::parse_from(["stonktop", "-s", "AAPL", "-b", "-n", "1"]);
+        let config = Config::default();
+        let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
+        app.alerts = vec![Alert {
+            symbol: "AAPL".to_string(),
+            above: Some(190.0),
+            below: None,
+        }];
+
+        app.refresh().await.unwrap();
+
+        assert_eq!(
+            app.triggered_alerts.len(),
+            1,
+            "alert should fire after refresh"
+        );
+    }
+
+    // --- Save watchlist tests ---
+
+    #[test]
+    fn test_save_watchlist_no_config_path() {
+        let mut app = test_app();
+        app.config_path = None;
+        // Should return Ok without doing anything
+        assert!(app.save_watchlist().is_ok());
+    }
+
+    #[test]
+    fn test_save_watchlist_nonexistent_path() {
+        let mut app = test_app();
+        app.config_path = Some(std::path::PathBuf::from(
+            "/tmp/nonexistent_stonktop_test/config.toml",
+        ));
+        // Should return Ok because path doesn't exist (skip save)
+        assert!(app.save_watchlist().is_ok());
     }
 }
