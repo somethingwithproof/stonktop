@@ -36,6 +36,24 @@ pub struct Config {
     /// Groups of symbols
     #[serde(default)]
     pub groups: HashMap<String, Vec<String>>,
+
+    /// Price alerts
+    #[serde(default)]
+    pub alerts: Vec<AlertConfig>,
+
+    /// Custom crypto symbol shortcuts
+    #[serde(default)]
+    pub shortcuts: HashMap<String, String>,
+}
+
+/// Alert configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertConfig {
+    pub symbol: String,
+    #[serde(default)]
+    pub above: Option<f64>,
+    #[serde(default)]
+    pub below: Option<f64>,
 }
 
 /// General application settings.
@@ -252,21 +270,24 @@ impl Config {
 
     /// Get all symbols from watchlist and holdings.
     pub fn all_symbols(&self) -> Vec<String> {
-        let mut symbols: Vec<String> = self.watchlist.symbols.clone();
+        let mut symbols: Vec<String> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
-        // Add holding symbols
-        for holding in &self.holdings {
-            if !symbols.contains(&holding.symbol) {
-                symbols.push(holding.symbol.clone());
+        let mut add = |s: &str| {
+            if seen.insert(s.to_string()) {
+                symbols.push(s.to_string());
             }
-        }
+        };
 
-        // Add group symbols
+        for s in &self.watchlist.symbols {
+            add(s);
+        }
+        for holding in &self.holdings {
+            add(&holding.symbol);
+        }
         for group_symbols in self.groups.values() {
             for symbol in group_symbols {
-                if !symbols.contains(symbol) {
-                    symbols.push(symbol.clone());
-                }
+                add(symbol);
             }
         }
 
@@ -341,6 +362,20 @@ border = "#444444"
 [groups]
 tech = ["AAPL", "GOOGL", "MSFT", "NVDA"]
 crypto = ["BTC-USD", "ETH-USD", "SOL-USD"]
+
+# Price alerts (optional)
+# [[alerts]]
+# symbol = "AAPL"
+# above = 200.00
+#
+# [[alerts]]
+# symbol = "BTC-USD"
+# below = 20000.00
+
+# Custom symbol shortcuts (optional)
+# [shortcuts]
+# PEPE = "PEPE-USD"
+# SHIB = "SHIB-USD"
 "##
 }
 
