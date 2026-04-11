@@ -31,6 +31,7 @@ crossterm = "0.29"
 # Async runtime
 tokio = { version = "1.50", features = ["rt-multi-thread", "macros", "time"] }
 futures-util = "0.3"
+async-trait = "0.1"
 
 # HTTP client
 reqwest = { version = "0.13", features = ["json"] }

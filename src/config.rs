@@ -36,6 +36,24 @@ pub struct Config {
     /// Groups of symbols
     #[serde(default)]
     pub groups: HashMap<String, Vec<String>>,
+
+    /// Price alerts
+    #[serde(default)]
+    pub alerts: Vec<AlertConfig>,
+
+    /// Custom crypto symbol shortcuts
+    #[serde(default)]
+    pub shortcuts: HashMap<String, String>,
+}
+
+/// Alert configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertConfig {
+    pub symbol: String,
+    #[serde(default)]
+    pub above: Option<f64>,
+    #[serde(default)]
+    pub below: Option<f64>,
 }
 
 /// General application settings.
@@ -344,6 +362,20 @@ border = "#444444"
 [groups]
 tech = ["AAPL", "GOOGL", "MSFT", "NVDA"]
 crypto = ["BTC-USD", "ETH-USD", "SOL-USD"]
+
+# Price alerts (optional)
+# [[alerts]]
+# symbol = "AAPL"
+# above = 200.00
+#
+# [[alerts]]
+# symbol = "BTC-USD"
+# below = 20000.00
+
+# Custom symbol shortcuts (optional)
+# [shortcuts]
+# PEPE = "PEPE-USD"
+# SHIB = "SHIB-USD"
 "##
 }
 

@@ -18,7 +18,7 @@ use app::App;
 use cli::Args;
 use config::Config;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -127,6 +127,11 @@ async fn run_interactive(app: &mut App) -> Result<()> {
     // Main loop
     let result = run_app(&mut terminal, app).await;
 
+    // Save watchlist if symbols were modified
+    if let Err(e) = app.save_watchlist() {
+        eprintln!("Warning: could not save watchlist: {}", e);
+    }
+
     // Restore terminal
     disable_raw_mode()?;
     execute!(
@@ -152,18 +157,40 @@ async fn run_app(
 
         // Handle events with timeout
         if crossterm::event::poll(tick_rate)? {
-            if let Event::Key(key) = event::read()? {
-                // Skip if secure mode and it's a modifying command
-                if app.secure_mode {
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => app.quit(),
-                        KeyCode::Up | KeyCode::Char('k') => app.select_up(),
-                        KeyCode::Down | KeyCode::Char('j') => app.select_down(),
-                        _ => {}
+            match event::read()? {
+                Event::Key(key) => {
+                    if app.secure_mode {
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => app.quit(),
+                            KeyCode::Up | KeyCode::Char('k') => app.select_up(),
+                            KeyCode::Down | KeyCode::Char('j') => app.select_down(),
+                            _ => {}
+                        }
+                    } else {
+                        app.handle_key_event(key.code, key.modifiers);
                     }
-                } else {
-                    app.handle_key_event(key.code, key.modifiers);
                 }
+                Event::Mouse(mouse) => {
+                    if !app.secure_mode {
+                        match mouse.kind {
+                            MouseEventKind::ScrollUp => app.select_up(),
+                            MouseEventKind::ScrollDown => app.select_down(),
+                            MouseEventKind::Down(_) => {
+                                // Rows start at y=4 (header=3 lines + table header=1)
+                                let row = mouse.row as usize;
+                                if row >= 4 {
+                                    let idx = row - 4 + app.scroll_offset;
+                                    let visible_len = app.visible_quotes().len();
+                                    if idx < visible_len {
+                                        app.selected = idx;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 

@@ -112,6 +112,11 @@ pub fn render(frame: &mut Frame, app: &App) {
         render_help_overlay(frame, &colors);
     }
 
+    // Render alerts if any triggered
+    if !app.triggered_alerts.is_empty() {
+        render_alerts(frame, app, &colors);
+    }
+
     // Render error if present
     if let Some(ref error) = app.error {
         render_error(frame, error, &colors);
@@ -417,20 +422,29 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
 /// Render the footer with keybindings.
 fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
     // Input mode gets a special prompt
-    if app.input_mode == crate::app::InputMode::AddSymbol {
-        let input_line = Line::from(vec![
-            Span::styled(" Add symbol: ", Style::default().fg(Color::Yellow)),
-            Span::raw(&app.input_buffer),
-            Span::styled(
-                "_",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::SLOW_BLINK),
-            ),
-        ]);
-        let footer_widget = Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
-        frame.render_widget(footer_widget, area);
-        return;
+    match app.input_mode {
+        crate::app::InputMode::AddSymbol => {
+            let input_line = Line::from(vec![
+                Span::styled(" Add symbol: ", Style::default().fg(Color::Yellow)),
+                Span::raw(&app.input_buffer),
+                Span::styled("_", Style::default().fg(Color::Yellow).add_modifier(Modifier::SLOW_BLINK)),
+            ]);
+            let footer_widget = Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
+            frame.render_widget(footer_widget, area);
+            return;
+        }
+        crate::app::InputMode::Search => {
+            let input_line = Line::from(vec![
+                Span::styled(" /", Style::default().fg(Color::Yellow)),
+                Span::raw(&app.search_filter),
+                Span::styled("_", Style::default().fg(Color::Yellow).add_modifier(Modifier::SLOW_BLINK)),
+                Span::raw(format!("  ({} matches)", app.visible_quotes().len())),
+            ]);
+            let footer_widget = Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
+            frame.render_widget(footer_widget, area);
+            return;
+        }
+        crate::app::InputMode::Normal => {}
     }
 
     let mode = if app.show_holdings {
@@ -502,12 +516,15 @@ fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
         Line::from("Symbols:"),
         Line::from("  a         Add symbol"),
         Line::from("  d         Remove symbol"),
+        Line::from("  /         Search/filter"),
         Line::from("  Enter     Quote detail"),
         Line::from(""),
         Line::from("Actions:"),
         Line::from("  Space/R   Force refresh"),
         Line::from("  q/Esc     Quit"),
         Line::from("  h/?       Toggle help"),
+        Line::from(""),
+        Line::from("Mouse: click to select, scroll to navigate"),
         Line::from(""),
         Line::from("Press any key to close"),
     ];
@@ -683,6 +700,29 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
         frame.render_widget(Clear, area);
         frame.render_widget(detail, area);
     }
+}
+
+/// Render triggered alerts as a notification bar.
+fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
+    let area = centered_rect(50, 20, frame.area());
+    let text: Vec<Line> = app
+        .triggered_alerts
+        .iter()
+        .map(|(_, msg)| Line::from(Span::styled(msg.as_str(), Style::default().fg(Color::Yellow))))
+        .collect();
+
+    let alert_widget = Paragraph::new(text)
+        .block(
+            Block::default()
+                .title(" Price Alerts ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Yellow)),
+        )
+        .style(Style::default().fg(colors.gain))
+        .wrap(Wrap { trim: true });
+
+    frame.render_widget(Clear, area);
+    frame.render_widget(alert_widget, area);
 }
 
 /// Render batch mode output (non-interactive).

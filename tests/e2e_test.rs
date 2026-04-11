@@ -427,6 +427,231 @@ cost_basis = 100.0
 
 // --- real network smoke test ---
 
+// --- Mock QuoteProvider tests ---
+
+/// A mock provider that returns canned quotes, for testing trait injection.
+struct MockProvider {
+    quotes: Vec<Quote>,
+}
+
+#[async_trait::async_trait]
+impl stonktop::models::QuoteProvider for MockProvider {
+    async fn get_quotes(&self, _symbols: &[String]) -> anyhow::Result<Vec<Quote>> {
+        Ok(self.quotes.clone())
+    }
+}
+
+#[tokio::test]
+async fn test_mock_provider_injection() {
+    let mock = MockProvider {
+        quotes: vec![
+            Quote {
+                symbol: "FAKE".into(),
+                name: "Fake Corp".into(),
+                price: 99.99,
+                change: 1.0,
+                change_percent: 1.01,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "TEST".into(),
+                name: "Test Inc".into(),
+                price: 50.0,
+                change: -0.5,
+                change_percent: -0.99,
+                ..Quote::default()
+            },
+        ],
+    };
+
+    let args = Args::parse_from(["stonktop", "-s", "FAKE,TEST", "-b", "-n", "1"]);
+    let config = Config::default();
+    let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
+
+    app.refresh().await.unwrap();
+
+    assert_eq!(app.quotes.len(), 2);
+    let syms: Vec<&str> = app.quotes.iter().map(|q| q.symbol.as_str()).collect();
+    assert!(syms.contains(&"FAKE"));
+    assert!(syms.contains(&"TEST"));
+}
+
+#[tokio::test]
+async fn test_alerts_from_config() {
+    use stonktop::config::AlertConfig;
+
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/AAPL"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(AAPL_FIXTURE))
+        .mount(&server)
+        .await;
+
+    let config = Config {
+        watchlist: stonktop::config::WatchlistConfig {
+            symbols: vec!["AAPL".to_string()],
+        },
+        alerts: vec![AlertConfig {
+            symbol: "AAPL".to_string(),
+            above: Some(190.0), // AAPL fixture price is 195.89
+            below: None,
+        }],
+        ..Config::default()
+    };
+
+    let args = Args::parse_from(["stonktop", "-b", "-n", "1"]);
+    let mut app = App::with_base_url(&args, &config, server.uri()).unwrap();
+
+    app.refresh().await.unwrap();
+
+    assert_eq!(app.quotes.len(), 1);
+    assert!(!app.triggered_alerts.is_empty(), "alert should have triggered");
+    assert!(app.triggered_alerts[0].1.contains("above"));
+}
+
+#[tokio::test]
+async fn test_custom_shortcuts_from_config() {
+    use std::collections::HashMap;
+
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/PEPE-USD"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(BTC_FIXTURE))
+        .mount(&server)
+        .await;
+
+    let mut shortcuts = HashMap::new();
+    shortcuts.insert("PEPE".to_string(), "PEPE-USD".to_string());
+
+    let config = Config {
+        watchlist: stonktop::config::WatchlistConfig {
+            symbols: vec!["PEPE".to_string()],
+        },
+        shortcuts,
+        ..Config::default()
+    };
+
+    let args = Args::parse_from(["stonktop", "-b", "-n", "1"]);
+    let app = App::with_base_url(&args, &config, server.uri()).unwrap();
+
+    // Symbol should be expanded via custom shortcut
+    assert!(app.symbols.contains(&"PEPE-USD".to_string()),
+        "expected PEPE to expand to PEPE-USD, got {:?}", app.symbols);
+}
+
+#[tokio::test]
+async fn test_search_filter_with_mock_provider() {
+    let mock = MockProvider {
+        quotes: vec![
+            Quote {
+                symbol: "AAPL".into(),
+                name: "Apple Inc".into(),
+                price: 195.0,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "AMZN".into(),
+                name: "Amazon.com".into(),
+                price: 180.0,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "GOOGL".into(),
+                name: "Alphabet Inc".into(),
+                price: 140.0,
+                ..Quote::default()
+            },
+        ],
+    };
+
+    let args = Args::parse_from(["stonktop", "-s", "AAPL,AMZN,GOOGL", "-b", "-n", "1"]);
+    let config = Config::default();
+    let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
+
+    app.refresh().await.unwrap();
+    assert_eq!(app.quotes.len(), 3);
+
+    // Apply search filter for "A" — matches AAPL, AMZN, and Alphabet
+    app.search_filter = "a".to_string();
+    let visible = app.visible_quotes();
+    // AAPL (symbol), AMZN (symbol), Alphabet (name) — all contain "A"
+    assert_eq!(visible.len(), 3);
+
+    // Filter more specifically for "amz"
+    app.search_filter = "amz".to_string();
+    let visible = app.visible_quotes();
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].symbol, "AMZN");
+}
+
+#[tokio::test]
+async fn test_groups_filter_visible_quotes() {
+    use std::collections::HashMap;
+
+    let mock = MockProvider {
+        quotes: vec![
+            Quote {
+                symbol: "AAPL".into(),
+                name: "Apple".into(),
+                price: 195.0,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "GOOGL".into(),
+                name: "Alphabet".into(),
+                price: 140.0,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "BTC-USD".into(),
+                name: "Bitcoin USD".into(),
+                price: 43000.0,
+                ..Quote::default()
+            },
+        ],
+    };
+
+    let mut groups = HashMap::new();
+    groups.insert("tech".to_string(), vec!["AAPL".to_string(), "GOOGL".to_string()]);
+    groups.insert("crypto".to_string(), vec!["BTC-USD".to_string()]);
+
+    let config = Config {
+        watchlist: stonktop::config::WatchlistConfig {
+            symbols: vec!["AAPL".to_string(), "GOOGL".to_string(), "BTC-USD".to_string()],
+        },
+        groups,
+        ..Config::default()
+    };
+
+    let args = Args::parse_from(["stonktop", "-b", "-n", "1"]);
+    let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
+
+    app.refresh().await.unwrap();
+    assert_eq!(app.quotes.len(), 3);
+
+    // All group
+    assert_eq!(app.active_group, 0);
+    assert_eq!(app.visible_quotes().len(), 3);
+
+    // Switch to a named group — find which index has "tech"
+    let tech_idx = app.groups.iter().position(|g| g == "tech").unwrap();
+    app.active_group = tech_idx;
+    let visible = app.visible_quotes();
+    assert_eq!(visible.len(), 2);
+    let syms: Vec<&str> = visible.iter().map(|q| q.symbol.as_str()).collect();
+    assert!(syms.contains(&"AAPL"));
+    assert!(syms.contains(&"GOOGL"));
+
+    // Switch to crypto group
+    let crypto_idx = app.groups.iter().position(|g| g == "crypto").unwrap();
+    app.active_group = crypto_idx;
+    let visible = app.visible_quotes();
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].symbol, "BTC-USD");
+}
+
 /// Fetch a real AAPL quote from Yahoo Finance.
 ///
 /// Skipped in CI; run with: cargo test -- --ignored
