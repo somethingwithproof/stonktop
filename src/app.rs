@@ -107,7 +107,11 @@ impl App {
 
     /// Create a new application with a custom QuoteProvider (for testing/plugins).
     #[allow(dead_code)]
-    pub fn with_provider(args: &Args, config: &Config, client: Box<dyn QuoteProvider>) -> Result<Self> {
+    pub fn with_provider(
+        args: &Args,
+        config: &Config,
+        client: Box<dyn QuoteProvider>,
+    ) -> Result<Self> {
         Self::build(args, config, client)
     }
 
@@ -407,15 +411,16 @@ impl App {
 
     /// Get quotes filtered by the active group and search filter.
     pub fn visible_quotes(&self) -> Vec<&Quote> {
-        let base: Vec<&Quote> = if self.active_group == 0 || self.active_group >= self.group_symbols.len() {
-            self.quotes.iter().collect()
-        } else {
-            let group_syms = &self.group_symbols[self.active_group];
-            self.quotes
-                .iter()
-                .filter(|q| group_syms.contains(&q.symbol))
-                .collect()
-        };
+        let base: Vec<&Quote> =
+            if self.active_group == 0 || self.active_group >= self.group_symbols.len() {
+                self.quotes.iter().collect()
+            } else {
+                let group_syms = &self.group_symbols[self.active_group];
+                self.quotes
+                    .iter()
+                    .filter(|q| group_syms.contains(&q.symbol))
+                    .collect()
+            };
 
         if self.search_filter.is_empty() {
             base
@@ -436,7 +441,9 @@ impl App {
 
     /// Get the active group name.
     pub fn active_group_name(&self) -> &str {
-        self.groups.get(self.active_group).map_or("All", |s| s.as_str())
+        self.groups
+            .get(self.active_group)
+            .map_or("All", |s| s.as_str())
     }
 
     /// Check price alerts and record any that trigger.
@@ -918,7 +925,10 @@ mod tests {
         app.handle_key_event(KeyCode::Esc, KeyModifiers::NONE);
 
         assert_eq!(app.input_mode, InputMode::Normal);
-        assert!(app.search_filter.is_empty(), "Esc should clear search filter");
+        assert!(
+            app.search_filter.is_empty(),
+            "Esc should clear search filter"
+        );
     }
 
     #[test]
@@ -929,7 +939,10 @@ mod tests {
         app.handle_key_event(KeyCode::Enter, KeyModifiers::NONE);
 
         assert_eq!(app.input_mode, InputMode::Normal);
-        assert_eq!(app.search_filter, "a", "Enter should keep the filter active");
+        assert_eq!(
+            app.search_filter, "a",
+            "Enter should keep the filter active"
+        );
     }
 
     #[test]
@@ -1104,9 +1117,15 @@ mod tests {
         app.handle_key_event(KeyCode::Char('h'), KeyModifiers::NONE);
         assert!(!app.show_help, "secure mode should block help toggle");
         app.handle_key_event(KeyCode::Char('H'), KeyModifiers::NONE);
-        assert!(!app.show_holdings, "secure mode should block holdings toggle");
+        assert!(
+            !app.show_holdings,
+            "secure mode should block holdings toggle"
+        );
         app.handle_key_event(KeyCode::Char('f'), KeyModifiers::NONE);
-        assert!(!app.show_fundamentals, "secure mode should block fundamentals toggle");
+        assert!(
+            !app.show_fundamentals,
+            "secure mode should block fundamentals toggle"
+        );
     }
 
     // --- Mock QuoteProvider tests ---
@@ -1168,7 +1187,11 @@ mod tests {
 
         app.refresh().await.unwrap();
 
-        assert_eq!(app.triggered_alerts.len(), 1, "alert should fire after refresh");
+        assert_eq!(
+            app.triggered_alerts.len(),
+            1,
+            "alert should fire after refresh"
+        );
     }
 
     // --- Save watchlist tests ---
@@ -1184,7 +1207,9 @@ mod tests {
     #[test]
     fn test_save_watchlist_nonexistent_path() {
         let mut app = test_app();
-        app.config_path = Some(std::path::PathBuf::from("/tmp/nonexistent_stonktop_test/config.toml"));
+        app.config_path = Some(std::path::PathBuf::from(
+            "/tmp/nonexistent_stonktop_test/config.toml",
+        ));
         // Should return Ok because path doesn't exist (skip save)
         assert!(app.save_watchlist().is_ok());
     }

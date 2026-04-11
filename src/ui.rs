@@ -427,9 +427,15 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
             let input_line = Line::from(vec![
                 Span::styled(" Add symbol: ", Style::default().fg(Color::Yellow)),
                 Span::raw(&app.input_buffer),
-                Span::styled("_", Style::default().fg(Color::Yellow).add_modifier(Modifier::SLOW_BLINK)),
+                Span::styled(
+                    "_",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::SLOW_BLINK),
+                ),
             ]);
-            let footer_widget = Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
+            let footer_widget =
+                Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
             frame.render_widget(footer_widget, area);
             return;
         }
@@ -437,10 +443,16 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
             let input_line = Line::from(vec![
                 Span::styled(" /", Style::default().fg(Color::Yellow)),
                 Span::raw(&app.search_filter),
-                Span::styled("_", Style::default().fg(Color::Yellow).add_modifier(Modifier::SLOW_BLINK)),
+                Span::styled(
+                    "_",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::SLOW_BLINK),
+                ),
                 Span::raw(format!("  ({} matches)", app.visible_quotes().len())),
             ]);
-            let footer_widget = Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
+            let footer_widget =
+                Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
             frame.render_widget(footer_widget, area);
             return;
         }
@@ -708,7 +720,12 @@ fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
     let text: Vec<Line> = app
         .triggered_alerts
         .iter()
-        .map(|(_, msg)| Line::from(Span::styled(msg.as_str(), Style::default().fg(Color::Yellow))))
+        .map(|(_, msg)| {
+            Line::from(Span::styled(
+                msg.as_str(),
+                Style::default().fg(Color::Yellow),
+            ))
+        })
         .collect();
 
     let alert_widget = Paragraph::new(text)

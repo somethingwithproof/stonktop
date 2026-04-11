@@ -284,7 +284,10 @@ const BUILTIN_SHORTCUTS: &[(&str, &str)] = &[
 ];
 
 /// Expand a symbol using custom shortcuts first, then built-in defaults.
-pub fn expand_symbol_with(symbol: &str, custom: &std::collections::HashMap<String, String>) -> String {
+pub fn expand_symbol_with(
+    symbol: &str,
+    custom: &std::collections::HashMap<String, String>,
+) -> String {
     // Custom shortcuts take priority
     if let Some(expanded) = custom.get(symbol) {
         return expanded.clone();
@@ -487,7 +490,10 @@ mod tests {
     #[test]
     fn test_parse_quote_type_all_variants() {
         assert_eq!(parse_quote_type(Some("EQUITY")), QuoteType::Equity);
-        assert_eq!(parse_quote_type(Some("CRYPTOCURRENCY")), QuoteType::Cryptocurrency);
+        assert_eq!(
+            parse_quote_type(Some("CRYPTOCURRENCY")),
+            QuoteType::Cryptocurrency
+        );
         assert_eq!(parse_quote_type(Some("ETF")), QuoteType::Etf);
         assert_eq!(parse_quote_type(Some("MUTUALFUND")), QuoteType::MutualFund);
         assert_eq!(parse_quote_type(Some("INDEX")), QuoteType::Index);

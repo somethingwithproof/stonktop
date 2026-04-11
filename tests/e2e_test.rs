@@ -506,7 +506,10 @@ async fn test_alerts_from_config() {
     app.refresh().await.unwrap();
 
     assert_eq!(app.quotes.len(), 1);
-    assert!(!app.triggered_alerts.is_empty(), "alert should have triggered");
+    assert!(
+        !app.triggered_alerts.is_empty(),
+        "alert should have triggered"
+    );
     assert!(app.triggered_alerts[0].1.contains("above"));
 }
 
@@ -537,8 +540,11 @@ async fn test_custom_shortcuts_from_config() {
     let app = App::with_base_url(&args, &config, server.uri()).unwrap();
 
     // Symbol should be expanded via custom shortcut
-    assert!(app.symbols.contains(&"PEPE-USD".to_string()),
-        "expected PEPE to expand to PEPE-USD, got {:?}", app.symbols);
+    assert!(
+        app.symbols.contains(&"PEPE-USD".to_string()),
+        "expected PEPE to expand to PEPE-USD, got {:?}",
+        app.symbols
+    );
 }
 
 #[tokio::test]
@@ -614,12 +620,19 @@ async fn test_groups_filter_visible_quotes() {
     };
 
     let mut groups = HashMap::new();
-    groups.insert("tech".to_string(), vec!["AAPL".to_string(), "GOOGL".to_string()]);
+    groups.insert(
+        "tech".to_string(),
+        vec!["AAPL".to_string(), "GOOGL".to_string()],
+    );
     groups.insert("crypto".to_string(), vec!["BTC-USD".to_string()]);
 
     let config = Config {
         watchlist: stonktop::config::WatchlistConfig {
-            symbols: vec!["AAPL".to_string(), "GOOGL".to_string(), "BTC-USD".to_string()],
+            symbols: vec![
+                "AAPL".to_string(),
+                "GOOGL".to_string(),
+                "BTC-USD".to_string(),
+            ],
         },
         groups,
         ..Config::default()
