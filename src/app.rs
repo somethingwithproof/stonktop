@@ -63,8 +63,10 @@ pub struct App {
     pub secure_mode: bool,
     /// Active group index
     pub active_group: usize,
-    /// Group names
+    /// Group names ("All" is prepended automatically)
     pub groups: Vec<String>,
+    /// Group symbol lists (index matches groups; index 0 = all symbols)
+    pub group_symbols: Vec<Vec<String>>,
     /// Verbose mode - for when you want MORE numbers to stress about
     pub verbose: bool,
     /// Color mode preference
@@ -75,6 +77,8 @@ pub struct App {
     pub input_buffer: String,
     /// Show detail popup for selected quote
     pub show_detail: bool,
+    /// Color configuration from config file
+    pub color_config: crate::config::ColorConfig,
 }
 
 impl App {
@@ -109,8 +113,13 @@ impl App {
             .map(|h| (expand_symbol(&h.symbol), h))
             .collect();
 
-        // Get groups
-        let groups: Vec<String> = config.groups.keys().cloned().collect();
+        // Build groups: first entry is "All", then each config group
+        let mut groups = vec!["All".to_string()];
+        let mut group_symbols: Vec<Vec<String>> = vec![symbols.clone()];
+        for (name, syms) in &config.groups {
+            groups.push(name.clone());
+            group_symbols.push(syms.iter().map(|s| expand_symbol(s)).collect());
+        }
         // Enforce minimum refresh interval of 1.0 second
         let delay = if args.delay < 1.0 { 1.0 } else { args.delay };
 
@@ -140,11 +149,13 @@ impl App {
             secure_mode: args.secure,
             active_group: 0,
             groups,
+            group_symbols,
             verbose: args.verbose,
-            color_mode: crate::cli::ColorMode::default(),
+            color_mode: args.color,
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             show_detail: false,
+            color_config: config.colors.clone(),
         })
     }
 
@@ -244,8 +255,14 @@ impl App {
 
     /// Move selection down.
     pub fn select_down(&mut self) {
-        if self.selected < self.quotes.len().saturating_sub(1) {
+        let max = self.visible_quotes().len().saturating_sub(1);
+        if self.selected < max {
             self.selected += 1;
+            // Keep the selected row visible (assume ~20 visible rows)
+            let visible_rows = 20usize;
+            if self.selected >= self.scroll_offset + visible_rows {
+                self.scroll_offset = self.selected - visible_rows + 1;
+            }
         }
     }
 
@@ -257,7 +274,7 @@ impl App {
 
     /// Move selection to bottom.
     pub fn select_bottom(&mut self) {
-        self.selected = self.quotes.len().saturating_sub(1);
+        self.selected = self.visible_quotes().len().saturating_sub(1);
     }
 
     /// Toggle help display.
@@ -348,10 +365,29 @@ impl App {
         }
     }
 
-    /// Get the currently selected quote.
+    /// Get quotes filtered by the active group.
+    pub fn visible_quotes(&self) -> Vec<&Quote> {
+        if self.active_group == 0 || self.active_group >= self.group_symbols.len() {
+            self.quotes.iter().collect()
+        } else {
+            let group_syms = &self.group_symbols[self.active_group];
+            self.quotes
+                .iter()
+                .filter(|q| group_syms.contains(&q.symbol))
+                .collect()
+        }
+    }
+
+    /// Get the currently selected quote (from visible quotes).
     /// Returns the quote you're currently staring at in disbelief.
     pub fn selected_quote(&self) -> Option<&Quote> {
-        self.quotes.get(self.selected)
+        let visible = self.visible_quotes();
+        visible.get(self.selected).copied()
+    }
+
+    /// Get the active group name.
+    pub fn active_group_name(&self) -> &str {
+        self.groups.get(self.active_group).map_or("All", |s| s.as_str())
     }
 
     /// Get time since last refresh as human readable string.
@@ -474,8 +510,10 @@ impl App {
 
             // Groups
             KeyCode::Tab => {
-                if !self.groups.is_empty() {
+                if self.groups.len() > 1 {
                     self.active_group = (self.active_group + 1) % self.groups.len();
+                    self.selected = 0;
+                    self.scroll_offset = 0;
                 }
             }
 

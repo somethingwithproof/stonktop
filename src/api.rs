@@ -29,7 +29,6 @@ fn is_valid_symbol(symbol: &str) -> bool {
 /// Your gateway to financial anxiety delivered in JSON format.
 pub struct YahooFinanceClient {
     client: Client,
-    timeout: Duration,
     base_url: String,
 }
 
@@ -49,11 +48,7 @@ impl YahooFinanceClient {
             .build()
             .context("Failed to create HTTP client")?;
 
-        Ok(Self {
-            client,
-            timeout: Duration::from_secs(timeout_secs),
-            base_url,
-        })
+        Ok(Self { client, base_url })
     }
 
     /// Fetch quotes for multiple symbols using parallel requests.
@@ -94,7 +89,6 @@ impl YahooFinanceClient {
         let response = self
             .client
             .get(&url)
-            .timeout(self.timeout)
             .send()
             .await
             .with_context(|| format!("Failed to fetch quote for {}", symbol))?;

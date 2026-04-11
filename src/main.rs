@@ -110,7 +110,9 @@ async fn run_interactive(app: &mut App) -> Result<()> {
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
-        let _ = execute!(std::io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+        let mut stdout = std::io::stdout();
+        let _ = execute!(stdout, LeaveAlternateScreen, DisableMouseCapture);
+        let _ = execute!(stdout, crossterm::cursor::Show);
         original_hook(info);
     }));
 

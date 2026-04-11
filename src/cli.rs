@@ -70,6 +70,10 @@ pub struct Args {
     #[arg(long, value_enum, default_value = "table")]
     pub format: OutputFormat,
 
+    /// Color mode (auto, always, never)
+    #[arg(long, value_enum, default_value = "auto")]
+    pub color: ColorMode,
+
     /// Generate a sample configuration file
     #[arg(long)]
     pub init: bool,

@@ -38,10 +38,9 @@ impl Default for UiColors {
 }
 
 impl UiColors {
-    /// Create colors appropriate for the given color mode.
-    /// "Never" mode strips all color — for the emotionally detached investor.
-    pub fn for_mode(mode: &crate::cli::ColorMode) -> Self {
-        match mode {
+    /// Create colors appropriate for the given color mode and config.
+    pub fn for_app(app: &App) -> Self {
+        match app.color_mode {
             crate::cli::ColorMode::Never => Self {
                 gain: Color::Reset,
                 loss: Color::Reset,
@@ -50,14 +49,40 @@ impl UiColors {
                 selected_bg: Color::Reset,
                 border: Color::Reset,
             },
-            _ => Self::default(),
+            _ => Self::from_config(&app.color_config),
+        }
+    }
+
+    /// Parse a hex color string like "#00ff00" into a ratatui Color.
+    /// Returns None if the string is not a valid 6-digit hex color.
+    pub fn parse_hex(hex: &str) -> Option<Color> {
+        let hex = hex.strip_prefix('#').unwrap_or(hex);
+        if hex.len() != 6 {
+            return None;
+        }
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        Some(Color::Rgb(r, g, b))
+    }
+
+    /// Create colors from a ColorConfig, falling back to defaults.
+    pub fn from_config(config: &crate::config::ColorConfig) -> Self {
+        let defaults = Self::default();
+        Self {
+            gain: Self::parse_hex(&config.gain).unwrap_or(defaults.gain),
+            loss: Self::parse_hex(&config.loss).unwrap_or(defaults.loss),
+            neutral: Self::parse_hex(&config.neutral).unwrap_or(defaults.neutral),
+            header_bg: Self::parse_hex(&config.header).unwrap_or(defaults.header_bg),
+            selected_bg: defaults.selected_bg,
+            border: Self::parse_hex(&config.border).unwrap_or(defaults.border),
         }
     }
 }
 
 /// Render the main UI.
 pub fn render(frame: &mut Frame, app: &App) {
-    let colors = UiColors::for_mode(&app.color_mode);
+    let colors = UiColors::for_app(app);
 
     // Create layout
     let chunks = Layout::default()
@@ -100,9 +125,10 @@ pub fn render(frame: &mut Frame, app: &App) {
 
 /// Render the header with summary information.
 fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
-    let gains = app.quotes.iter().filter(|q| q.change_percent > 0.0).count();
-    let losses = app.quotes.iter().filter(|q| q.change_percent < 0.0).count();
-    let unchanged = app.quotes.len() - gains - losses;
+    let visible = app.visible_quotes();
+    let gains = visible.iter().filter(|q| q.change_percent > 0.0).count();
+    let losses = visible.iter().filter(|q| q.change_percent < 0.0).count();
+    let unchanged = visible.len() - gains - losses;
 
     let header_text = if app.show_holdings {
         let total_value = app.total_portfolio_value();
@@ -153,7 +179,11 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
                         .fg(Color::Cyan)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(format!("- {} symbols", app.quotes.len())),
+                Span::raw(format!(
+                    "- {} symbols [{}]",
+                    visible.len(),
+                    app.active_group_name()
+                )),
             ]),
             Line::from(vec![
                 Span::styled(format!("{} ", gains), Style::default().fg(colors.gain)),
@@ -187,6 +217,15 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         ("MKT CAP", SortOrder::MarketCap),
     ];
 
+    // Fundamentals mode adds price range columns
+    if app.show_fundamentals {
+        base_headers.push(("OPEN", SortOrder::Price));
+        base_headers.push(("HIGH", SortOrder::Price));
+        base_headers.push(("LOW", SortOrder::Price));
+        base_headers.push(("52W H", SortOrder::Price));
+        base_headers.push(("52W L", SortOrder::Price));
+    }
+
     // Verbose mode adds extra columns for the truly data-hungry
     if app.verbose {
         base_headers.push(("EXCHANGE", SortOrder::Symbol)); // no dedicated sort
@@ -219,8 +258,8 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         .style(Style::default().bg(colors.header_bg))
         .height(1);
 
-    let visible_quotes: Vec<_> = app
-        .quotes
+    let filtered = app.visible_quotes();
+    let visible_quotes: Vec<_> = filtered
         .iter()
         .enumerate()
         .skip(app.scroll_offset)
@@ -253,6 +292,14 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             Cell::from(format_market_cap(quote.market_cap)),
         ];
 
+        if app.show_fundamentals {
+            cells.push(Cell::from(format_price(quote.open)));
+            cells.push(Cell::from(format_price(quote.day_high)));
+            cells.push(Cell::from(format_price(quote.day_low)));
+            cells.push(Cell::from(format_price(quote.year_high)));
+            cells.push(Cell::from(format_price(quote.year_low)));
+        }
+
         if app.verbose {
             cells.push(Cell::from(truncate_string(&quote.exchange, 10)));
             cells.push(Cell::from(quote.currency.clone()));
@@ -271,6 +318,14 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         Constraint::Length(12),
         Constraint::Length(12),
     ];
+
+    if app.show_fundamentals {
+        widths.push(Constraint::Length(12)); // OPEN
+        widths.push(Constraint::Length(12)); // HIGH
+        widths.push(Constraint::Length(12)); // LOW
+        widths.push(Constraint::Length(12)); // 52W H
+        widths.push(Constraint::Length(12)); // 52W L
+    }
 
     if app.verbose {
         widths.push(Constraint::Length(12));
@@ -568,6 +623,14 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
     if let Some(quote) = app.selected_quote() {
         let area = centered_rect(60, 60, frame.area());
 
+        let fmt_or_na = |v: f64| -> String {
+            if v == 0.0 {
+                "N/A".to_string()
+            } else {
+                format_price(v)
+            }
+        };
+
         let detail_text = vec![
             Line::from(Span::styled(
                 format!(" {} - {} ", quote.symbol, quote.name),
@@ -581,22 +644,13 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
             )),
             Line::from(format!(
                 "  Prev Close:     {}",
-                format_price(quote.previous_close)
+                fmt_or_na(quote.previous_close)
             )),
-            Line::from(format!("  Open:           {}", format_price(quote.open))),
-            Line::from(format!(
-                "  Day High:       {}",
-                format_price(quote.day_high)
-            )),
-            Line::from(format!("  Day Low:        {}", format_price(quote.day_low))),
-            Line::from(format!(
-                "  52w High:       {}",
-                format_price(quote.year_high)
-            )),
-            Line::from(format!(
-                "  52w Low:        {}",
-                format_price(quote.year_low)
-            )),
+            Line::from(format!("  Open:           {}", fmt_or_na(quote.open))),
+            Line::from(format!("  Day High:       {}", fmt_or_na(quote.day_high))),
+            Line::from(format!("  Day Low:        {}", fmt_or_na(quote.day_low))),
+            Line::from(format!("  52w High:       {}", fmt_or_na(quote.year_high))),
+            Line::from(format!("  52w Low:        {}", fmt_or_na(quote.year_low))),
             Line::from(format!("  Volume:         {}", format_volume(quote.volume))),
             Line::from(format!(
                 "  Avg Volume:     {}",
@@ -712,10 +766,16 @@ fn render_batch_json(app: &App) {
 fn render_batch_csv(app: &App) {
     println!("symbol,name,price,change,change_percent,volume,market_cap");
     for quote in &app.quotes {
+        // RFC 4180: quote fields that contain commas, quotes, or newlines
+        let name = if quote.name.contains(',') || quote.name.contains('"') {
+            format!("\"{}\"", quote.name.replace('"', "\"\""))
+        } else {
+            quote.name.clone()
+        };
         println!(
             "{},{},{:.2},{:+.2},{:+.2},{},{}",
             quote.symbol,
-            quote.name.replace(',', ";"), // escape commas in names
+            name,
             quote.price,
             quote.change,
             quote.change_percent,

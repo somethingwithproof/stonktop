@@ -252,21 +252,24 @@ impl Config {
 
     /// Get all symbols from watchlist and holdings.
     pub fn all_symbols(&self) -> Vec<String> {
-        let mut symbols: Vec<String> = self.watchlist.symbols.clone();
+        let mut symbols: Vec<String> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
-        // Add holding symbols
-        for holding in &self.holdings {
-            if !symbols.contains(&holding.symbol) {
-                symbols.push(holding.symbol.clone());
+        let mut add = |s: &str| {
+            if seen.insert(s.to_string()) {
+                symbols.push(s.to_string());
             }
-        }
+        };
 
-        // Add group symbols
+        for s in &self.watchlist.symbols {
+            add(s);
+        }
+        for holding in &self.holdings {
+            add(&holding.symbol);
+        }
         for group_symbols in self.groups.values() {
             for symbol in group_symbols {
-                if !symbols.contains(symbol) {
-                    symbols.push(symbol.clone());
-                }
+                add(symbol);
             }
         }
 
