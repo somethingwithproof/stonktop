@@ -18,7 +18,7 @@ use app::App;
 use cli::Args;
 use config::Config;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -164,16 +164,7 @@ async fn run_app(
         if crossterm::event::poll(tick_rate)? {
             match event::read()? {
                 Event::Key(key) => {
-                    if app.secure_mode {
-                        match key.code {
-                            KeyCode::Char('q') | KeyCode::Esc => app.quit(),
-                            KeyCode::Up | KeyCode::Char('k') => app.select_up(),
-                            KeyCode::Down | KeyCode::Char('j') => app.select_down(),
-                            _ => {}
-                        }
-                    } else {
-                        app.handle_key_event(key.code, key.modifiers);
-                    }
+                    app.handle_key_event(key.code, key.modifiers);
                 }
                 Event::Mouse(mouse) => {
                     if !app.secure_mode {

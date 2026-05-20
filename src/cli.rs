@@ -5,6 +5,14 @@
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
+fn parse_positive_f64(s: &str) -> Result<f64, String> {
+    let val: f64 = s.parse().map_err(|e| format!("{e}"))?;
+    if !val.is_finite() || val <= 0.0 {
+        return Err("delay must be a positive number".to_string());
+    }
+    Ok(val)
+}
+
 /// A top-like terminal UI for monitoring stock and cryptocurrency prices.
 /// Like htop, but for watching numbers go down instead of CPU usage.
 ///
@@ -25,7 +33,7 @@ pub struct Args {
     pub symbols: Option<Vec<String>>,
 
     /// Refresh delay in seconds (like top -d)
-    #[arg(short = 'd', long, default_value = "5", env = "STONKTOP_DELAY")]
+    #[arg(short = 'd', long, default_value = "5", env = "STONKTOP_DELAY", value_parser = parse_positive_f64)]
     pub delay: f64,
 
     /// Number of iterations before exiting (like top -n)
@@ -53,18 +61,6 @@ pub struct Args {
     /// Reverse sort order
     #[arg(short = 'r', long)]
     pub reverse: bool,
-
-    /// Show only top N symbols
-    #[arg(short = 't', long)]
-    pub top: Option<usize>,
-
-    /// Filter by quote type
-    #[arg(short = 'f', long, value_enum)]
-    pub filter: Option<FilterType>,
-
-    /// Hide summary header
-    #[arg(long)]
-    pub no_header: bool,
 
     /// Show holdings/portfolio view
     #[arg(short = 'H', long)]
@@ -131,19 +127,6 @@ impl From<SortField> for crate::models::SortOrder {
             SortField::MarketCap => crate::models::SortOrder::MarketCap,
         }
     }
-}
-
-/// Filter options for quote types.
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum FilterType {
-    /// Show only stocks
-    Stocks,
-    /// Show only cryptocurrencies
-    Crypto,
-    /// Show only ETFs
-    Etf,
-    /// Show only indices
-    Index,
 }
 
 /// Color output mode.

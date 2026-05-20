@@ -362,12 +362,12 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
         .style(Style::default().bg(colors.header_bg))
         .height(1);
 
-    let holdings_data: Vec<_> = app
-        .quotes
+    let visible = app.visible_quotes();
+    let holdings_data: Vec<_> = visible
         .iter()
         .filter_map(|quote| {
             let holding = app.holdings.get(&quote.symbol)?;
-            Some((quote, holding))
+            Some((*quote, holding))
         })
         .collect();
 
@@ -590,21 +590,23 @@ fn render_error(frame: &mut Frame, error: &str, colors: &UiColors) {
 
 /// Create a centered rectangle.
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let px = percent_x.min(100);
+    let py = percent_y.min(100);
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage((100 - py) / 2),
+            Constraint::Percentage(py),
+            Constraint::Percentage((100 - py) / 2),
         ])
         .split(r);
 
     Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage((100 - px) / 2),
+            Constraint::Percentage(px),
+            Constraint::Percentage((100 - px) / 2),
         ])
         .split(popup_layout[1])[1]
 }
@@ -898,6 +900,26 @@ mod tests {
         assert_eq!(csv_escape("has\"quote"), "\"has\"\"quote\"");
         assert_eq!(csv_escape("has\nnewline"), "\"has\nnewline\"");
         assert_eq!(csv_escape("has\rcarriage"), "\"has\rcarriage\"");
+    }
+
+    // --- parse_hex tests ---
+
+    #[test]
+    fn test_parse_hex_valid() {
+        assert_eq!(UiColors::parse_hex("#00ff00"), Some(Color::Rgb(0, 255, 0)));
+        assert_eq!(UiColors::parse_hex("#ff0000"), Some(Color::Rgb(255, 0, 0)));
+        assert_eq!(
+            UiColors::parse_hex("1e90ff"),
+            Some(Color::Rgb(30, 144, 255))
+        );
+    }
+
+    #[test]
+    fn test_parse_hex_invalid() {
+        assert_eq!(UiColors::parse_hex(""), None);
+        assert_eq!(UiColors::parse_hex("#fff"), None);
+        assert_eq!(UiColors::parse_hex("banana"), None);
+        assert_eq!(UiColors::parse_hex("#gggggg"), None);
     }
 
     // --- format_volume tests ---

@@ -133,11 +133,15 @@ impl App {
         let mut seen = std::collections::HashSet::new();
         symbols.retain(|s| seen.insert(s.clone()));
 
-        // Build holdings map
+        // Build holdings map (expand symbols in both key and Holding.symbol)
         let holdings: HashMap<String, Holding> = config
             .get_holdings()
             .into_iter()
-            .map(|h| (expand_symbol_with(&h.symbol, &custom_shortcuts), h))
+            .map(|mut h| {
+                let expanded = expand_symbol_with(&h.symbol, &custom_shortcuts);
+                h.symbol = expanded.clone();
+                (expanded, h)
+            })
             .collect();
 
         // Build groups: first entry is "All", then each config group
@@ -162,8 +166,29 @@ impl App {
                 below: a.below,
             })
             .collect();
-        // Enforce minimum refresh interval of 1.0 second
-        let delay = if args.delay < 1.0 { 1.0 } else { args.delay };
+        // Use config refresh_interval when CLI delay is at default (5.0)
+        let raw_delay =
+            if (args.delay - 5.0).abs() < f64::EPSILON && config.general.refresh_interval != 5.0 {
+                config.general.refresh_interval
+            } else {
+                args.delay
+            };
+        let delay = if raw_delay < 1.0 { 1.0 } else { raw_delay };
+
+        // Use config sort_by when CLI sort is at default (ChangePercent)
+        let sort_order = if matches!(args.sort, crate::cli::SortField::ChangePercent) {
+            match config.display.sort_by.as_str() {
+                "symbol" => SortOrder::Symbol,
+                "name" => SortOrder::Name,
+                "price" => SortOrder::Price,
+                "change" => SortOrder::Change,
+                "volume" => SortOrder::Volume,
+                "market_cap" => SortOrder::MarketCap,
+                _ => args.sort.into(),
+            }
+        } else {
+            args.sort.into()
+        };
 
         Ok(Self {
             quotes: Vec::new(),
@@ -172,7 +197,7 @@ impl App {
             client,
             last_refresh: None,
             refresh_interval: Duration::from_secs_f64(delay),
-            sort_order: args.sort.into(),
+            sort_order,
             sort_direction: if args.reverse {
                 SortDirection::Ascending
             } else {
@@ -340,30 +365,22 @@ impl App {
 
     /// Toggle help display.
     pub fn toggle_help(&mut self) {
-        if !self.secure_mode {
-            self.show_help = !self.show_help;
-        }
+        self.show_help = !self.show_help;
     }
 
     /// Toggle holdings view.
     pub fn toggle_holdings(&mut self) {
-        if !self.secure_mode {
-            self.show_holdings = !self.show_holdings;
-        }
+        self.show_holdings = !self.show_holdings;
     }
 
     /// Toggle fundamentals display.
     pub fn toggle_fundamentals(&mut self) {
-        if !self.secure_mode {
-            self.show_fundamentals = !self.show_fundamentals;
-        }
+        self.show_fundamentals = !self.show_fundamentals;
     }
 
     /// Toggle detail view for the selected quote.
     pub fn toggle_detail(&mut self) {
-        if !self.secure_mode {
-            self.show_detail = !self.show_detail;
-        }
+        self.show_detail = !self.show_detail;
     }
 
     /// Quit the application.
@@ -597,6 +614,20 @@ impl App {
             return;
         }
 
+        // Secure mode: only allow quit and basic navigation
+        if self.secure_mode {
+            match code {
+                KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+                KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => self.quit(),
+                KeyCode::Up | KeyCode::Char('k') => self.select_up(),
+                KeyCode::Down | KeyCode::Char('j') => self.select_down(),
+                KeyCode::Home | KeyCode::Char('g') => self.select_top(),
+                KeyCode::End | KeyCode::Char('G') => self.select_bottom(),
+                _ => {}
+            }
+            return;
+        }
+
         match code {
             // Quit
             KeyCode::Char('q') | KeyCode::Esc => self.quit(),
@@ -634,12 +665,12 @@ impl App {
             KeyCode::Char('f') => self.toggle_fundamentals(),
             KeyCode::Char('h') | KeyCode::Char('?') => self.toggle_help(),
 
-            // Symbol management (blocked in secure mode)
-            KeyCode::Char('a') if !self.secure_mode => {
+            // Symbol management
+            KeyCode::Char('a') => {
                 self.input_mode = InputMode::AddSymbol;
                 self.input_buffer.clear();
             }
-            KeyCode::Char('d') if !self.secure_mode => {
+            KeyCode::Char('d') => {
                 if let Some(quote) = self.selected_quote() {
                     let symbol = quote.symbol.clone();
                     self.remove_symbol(&symbol);
@@ -765,6 +796,37 @@ mod tests {
         assert_eq!(app.sort_order, SortOrder::Price);
         app.handle_key_event(KeyCode::Char('1'), KeyModifiers::NONE);
         assert_eq!(app.sort_order, SortOrder::Symbol);
+    }
+
+    #[test]
+    fn test_set_sort_order_toggles_direction_on_same() {
+        let mut app = test_app();
+        app.set_sort_order(SortOrder::Price);
+        let dir = app.sort_direction;
+        app.set_sort_order(SortOrder::Price);
+        assert_ne!(
+            app.sort_direction, dir,
+            "same order twice should toggle direction"
+        );
+    }
+
+    #[test]
+    fn test_holding_profit_loss_percent_zero_cost() {
+        use crate::models::Holding;
+        let h = Holding {
+            symbol: "FREE".to_string(),
+            quantity: 10.0,
+            cost_basis: 0.0,
+        };
+        assert_eq!(h.profit_loss_percent(100.0), 0.0);
+    }
+
+    #[test]
+    fn test_add_duplicate_symbol_is_noop() {
+        let mut app = test_app();
+        let count = app.symbols.len();
+        app.add_symbol("AAPL");
+        assert_eq!(app.symbols.len(), count);
     }
 
     #[test]
@@ -1132,42 +1194,55 @@ mod tests {
     // --- Secure mode restrictions ---
 
     #[test]
-    fn test_secure_mode_blocks_toggles() {
+    fn test_secure_mode_blocks_everything_except_nav_and_quit() {
         let mut app = test_app();
         app.secure_mode = true;
+
+        // Toggles blocked
         app.handle_key_event(KeyCode::Char('h'), KeyModifiers::NONE);
-        assert!(!app.show_help, "secure mode should block help toggle");
+        assert!(!app.show_help, "secure mode should block help");
         app.handle_key_event(KeyCode::Char('H'), KeyModifiers::NONE);
-        assert!(
-            !app.show_holdings,
-            "secure mode should block holdings toggle"
-        );
+        assert!(!app.show_holdings, "secure mode should block holdings");
         app.handle_key_event(KeyCode::Char('f'), KeyModifiers::NONE);
         assert!(
             !app.show_fundamentals,
-            "secure mode should block fundamentals toggle"
+            "secure mode should block fundamentals"
         );
-    }
 
-    #[test]
-    fn test_secure_mode_blocks_add_remove() {
-        let mut app = test_app();
-        app.secure_mode = true;
+        // Add/remove blocked
         let sym_count = app.symbols.len();
-
         app.handle_key_event(KeyCode::Char('a'), KeyModifiers::NONE);
         assert_eq!(
             app.input_mode,
             InputMode::Normal,
-            "secure mode should block add symbol"
+            "secure mode should block add"
         );
-
         app.handle_key_event(KeyCode::Char('d'), KeyModifiers::NONE);
         assert_eq!(
             app.symbols.len(),
             sym_count,
-            "secure mode should block remove symbol"
+            "secure mode should block remove"
         );
+
+        // Sort/search blocked
+        let sort = app.sort_order;
+        app.handle_key_event(KeyCode::Char('s'), KeyModifiers::NONE);
+        assert_eq!(app.sort_order, sort, "secure mode should block sort");
+        app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE);
+        assert_eq!(
+            app.input_mode,
+            InputMode::Normal,
+            "secure mode should block search"
+        );
+
+        // Navigation still works
+        assert_eq!(app.selected, 0);
+        app.handle_key_event(KeyCode::Char('j'), KeyModifiers::NONE);
+        assert_eq!(app.selected, 1, "secure mode should allow navigation");
+
+        // Quit still works
+        app.handle_key_event(KeyCode::Char('q'), KeyModifiers::NONE);
+        assert!(!app.running, "secure mode should allow quit");
     }
 
     #[test]
