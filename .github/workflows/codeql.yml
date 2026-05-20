@@ -6,11 +6,13 @@ on:
     paths-ignore:
       - "**/*.md"
       - "LICENSE"
+      - ".github/dependabot.yml"
   pull_request:
     branches: [main, master]
     paths-ignore:
       - "**/*.md"
       - "LICENSE"
+      - ".github/dependabot.yml"
   schedule:
     - cron: "30 1 * * 1"
 
@@ -18,7 +20,7 @@ jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     concurrency:
       group: codeql-${{ github.ref }}
       cancel-in-progress: true
@@ -30,13 +32,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+
+      - name: Cache cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-codeql-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-codeql-cargo-
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v3
         with:
           languages: rust
+          queries: security-and-quality
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@c10b8064de6f491fea524254123dbe5e09572f13 # v3
+      - name: Build
+        run: cargo build --release
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v3
