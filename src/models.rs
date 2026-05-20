@@ -210,6 +210,62 @@ pub trait QuoteProvider: Send + Sync {
     async fn get_quotes(&self, symbols: &[String]) -> anyhow::Result<Vec<Quote>>;
 }
 
+/// Rolling buffer of recent prices for sparkline rendering.
+#[derive(Debug, Clone, Default)]
+pub struct PriceHistory {
+    prices: Vec<f64>,
+    max_len: usize,
+}
+
+impl PriceHistory {
+    pub fn new(max_len: usize) -> Self {
+        Self {
+            prices: Vec::with_capacity(max_len),
+            max_len,
+        }
+    }
+
+    pub fn push(&mut self, price: f64) {
+        if self.prices.len() >= self.max_len {
+            self.prices.remove(0);
+        }
+        self.prices.push(price);
+    }
+
+    pub fn as_slice(&self) -> &[f64] {
+        &self.prices
+    }
+
+    pub fn len(&self) -> usize {
+        self.prices.len()
+    }
+
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.prices.is_empty()
+    }
+
+    pub fn to_sparkline_data(&self) -> Vec<u64> {
+        if self.prices.is_empty() {
+            return Vec::new();
+        }
+        let min = self.prices.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max = self
+            .prices
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
+        let range = max - min;
+        if range == 0.0 {
+            return vec![4; self.prices.len()];
+        }
+        self.prices
+            .iter()
+            .map(|&p| ((p - min) / range * 7.0).round() as u64)
+            .collect()
+    }
+}
+
 /// Alert threshold for a symbol.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
@@ -232,5 +288,166 @@ impl SortDirection {
             SortDirection::Ascending => SortDirection::Descending,
             SortDirection::Descending => SortDirection::Ascending,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- PriceHistory tests ---
+
+    #[test]
+    fn test_price_history_new() {
+        let h = PriceHistory::new(5);
+        assert!(h.is_empty());
+        assert_eq!(h.len(), 0);
+        assert_eq!(h.as_slice(), &[] as &[f64]);
+    }
+
+    #[test]
+    fn test_price_history_push() {
+        let mut h = PriceHistory::new(5);
+        h.push(100.0);
+        h.push(101.0);
+        assert_eq!(h.len(), 2);
+        assert_eq!(h.as_slice(), &[100.0, 101.0]);
+    }
+
+    #[test]
+    fn test_price_history_rolling_eviction() {
+        let mut h = PriceHistory::new(3);
+        h.push(1.0);
+        h.push(2.0);
+        h.push(3.0);
+        assert_eq!(h.len(), 3);
+        h.push(4.0);
+        assert_eq!(h.len(), 3);
+        assert_eq!(h.as_slice(), &[2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn test_price_history_sparkline_empty() {
+        let h = PriceHistory::new(5);
+        assert!(h.to_sparkline_data().is_empty());
+    }
+
+    #[test]
+    fn test_price_history_sparkline_flat() {
+        let mut h = PriceHistory::new(5);
+        h.push(100.0);
+        h.push(100.0);
+        h.push(100.0);
+        let data = h.to_sparkline_data();
+        assert_eq!(data, vec![4, 4, 4]);
+    }
+
+    #[test]
+    fn test_price_history_sparkline_ascending() {
+        let mut h = PriceHistory::new(5);
+        h.push(0.0);
+        h.push(3.5);
+        h.push(7.0);
+        let data = h.to_sparkline_data();
+        assert_eq!(data[0], 0); // min
+        assert_eq!(data[2], 7); // max
+    }
+
+    #[test]
+    fn test_price_history_sparkline_descending() {
+        let mut h = PriceHistory::new(5);
+        h.push(100.0);
+        h.push(50.0);
+        h.push(0.0);
+        let data = h.to_sparkline_data();
+        assert_eq!(data[0], 7); // max (100)
+        assert_eq!(data[2], 0); // min (0)
+    }
+
+    #[test]
+    fn test_price_history_single_value() {
+        let mut h = PriceHistory::new(5);
+        h.push(42.0);
+        let data = h.to_sparkline_data();
+        assert_eq!(data, vec![4]); // flat = midpoint
+    }
+
+    // --- SortDirection tests ---
+
+    #[test]
+    fn test_sort_direction_toggle() {
+        assert_eq!(SortDirection::Ascending.toggle(), SortDirection::Descending);
+        assert_eq!(SortDirection::Descending.toggle(), SortDirection::Ascending);
+    }
+
+    // --- SortOrder tests ---
+
+    #[test]
+    fn test_sort_order_next_cycles() {
+        let mut order = SortOrder::Symbol;
+        for _ in 0..7 {
+            order = order.next();
+        }
+        assert_eq!(order, SortOrder::Symbol); // full cycle
+    }
+
+    #[test]
+    fn test_sort_order_header() {
+        assert_eq!(SortOrder::Symbol.header(), "SYMBOL");
+        assert_eq!(SortOrder::Price.header(), "PRICE");
+        assert_eq!(SortOrder::MarketCap.header(), "MKT CAP");
+    }
+
+    // --- QuoteType Display tests ---
+
+    #[test]
+    fn test_quote_type_display() {
+        assert_eq!(format!("{}", QuoteType::Equity), "Stock");
+        assert_eq!(format!("{}", QuoteType::Cryptocurrency), "Crypto");
+        assert_eq!(format!("{}", QuoteType::Etf), "ETF");
+        assert_eq!(format!("{}", QuoteType::Currency), "Forex");
+    }
+
+    // --- MarketState Display tests ---
+
+    #[test]
+    fn test_market_state_display() {
+        assert_eq!(format!("{}", MarketState::Regular), "Open");
+        assert_eq!(format!("{}", MarketState::Closed), "Closed");
+        assert_eq!(format!("{}", MarketState::Pre), "Pre");
+        assert_eq!(format!("{}", MarketState::Post), "Post");
+    }
+
+    // --- Holding tests ---
+
+    #[test]
+    fn test_holding_total_cost() {
+        let h = Holding {
+            symbol: "AAPL".to_string(),
+            quantity: 10.0,
+            cost_basis: 150.0,
+        };
+        assert!((h.total_cost() - 1500.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_holding_profit_loss() {
+        let h = Holding {
+            symbol: "AAPL".to_string(),
+            quantity: 10.0,
+            cost_basis: 150.0,
+        };
+        assert!((h.profit_loss(200.0) - 500.0).abs() < f64::EPSILON);
+        assert!((h.profit_loss(100.0) - (-500.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_holding_profit_loss_percent() {
+        let h = Holding {
+            symbol: "AAPL".to_string(),
+            quantity: 10.0,
+            cost_basis: 100.0,
+        };
+        assert!((h.profit_loss_percent(200.0) - 100.0).abs() < f64::EPSILON);
     }
 }

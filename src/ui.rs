@@ -10,7 +10,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Sparkline, Table, TableState, Wrap},
     Frame,
 };
 
@@ -97,8 +97,15 @@ pub fn render(frame: &mut Frame, app: &App) {
     // Render header
     render_header(frame, app, chunks[0], &colors);
 
-    // Render main table
-    if app.show_holdings {
+    // Render main table (with optional sparkline area)
+    if app.show_sparklines && !app.show_holdings {
+        let table_spark = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(60), Constraint::Length(22)])
+            .split(chunks[1]);
+        render_quotes_table(frame, app, table_spark[0], &colors);
+        render_sparklines(frame, app, table_spark[1], &colors);
+    } else if app.show_holdings {
         render_holdings_table(frame, app, chunks[1], &colors);
     } else {
         render_quotes_table(frame, app, chunks[1], &colors);
@@ -539,6 +546,7 @@ fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
         Line::from("Display:"),
         Line::from("  H         Toggle holdings view"),
         Line::from("  f         Toggle fundamentals"),
+        Line::from("  S         Toggle sparklines"),
         Line::from("  Tab       Cycle groups"),
         Line::from(""),
         Line::from("Symbols:"),
@@ -546,6 +554,7 @@ fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
         Line::from("  d         Remove symbol"),
         Line::from("  /         Search/filter"),
         Line::from("  Enter     Quote detail"),
+        Line::from("  e         Export watchlist"),
         Line::from(""),
         Line::from("Actions:"),
         Line::from("  Space/R   Force refresh"),
@@ -665,10 +674,26 @@ pub(crate) fn truncate_string(s: &str, max_len: usize) -> String {
     }
 }
 
+/// Build a visual range bar showing where a value sits between low and high.
+fn range_bar(low: f64, high: f64, current: f64, width: usize) -> String {
+    if high <= low || width < 3 {
+        return format!("{:.2} — {:.2}", low, high);
+    }
+    let pos = ((current - low) / (high - low)).clamp(0.0, 1.0);
+    let idx = (pos * (width - 1) as f64).round() as usize;
+    let mut bar: Vec<char> = vec!['─'; width];
+    bar[0] = '├';
+    bar[width - 1] = '┤';
+    if idx < width {
+        bar[idx] = '●';
+    }
+    bar.iter().collect()
+}
+
 /// Render detail popup for the selected quote.
 fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
     if let Some(quote) = app.selected_quote() {
-        let area = centered_rect(60, 60, frame.area());
+        let area = centered_rect(65, 75, frame.area());
 
         let fmt_or_na = |v: f64| -> String {
             if v == 0.0 {
@@ -678,26 +703,58 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
             }
         };
 
-        let detail_text = vec![
+        let change_color = if quote.change_percent >= 0.0 {
+            colors.gain
+        } else {
+            colors.loss
+        };
+
+        let day_range_bar = if quote.day_low > 0.0 && quote.day_high > 0.0 {
+            range_bar(quote.day_low, quote.day_high, quote.price, 20)
+        } else {
+            "N/A".to_string()
+        };
+
+        let year_range_bar = if quote.year_low > 0.0 && quote.year_high > 0.0 {
+            range_bar(quote.year_low, quote.year_high, quote.price, 20)
+        } else {
+            "N/A".to_string()
+        };
+
+        let mut detail_text = vec![
             Line::from(Span::styled(
                 format!(" {} - {} ", quote.symbol, quote.name),
                 Style::default().add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
-            Line::from(format!("  Price:          {}", format_price(quote.price))),
-            Line::from(format!(
-                "  Change:         {:+.2} ({:+.2}%)",
-                quote.change, quote.change_percent
-            )),
+            Line::from(vec![
+                Span::raw(format!("  Price:          {}", format_price(quote.price))),
+                Span::raw("  "),
+                Span::styled(
+                    format!("{:+.2} ({:+.2}%)", quote.change, quote.change_percent),
+                    Style::default().fg(change_color),
+                ),
+            ]),
             Line::from(format!(
                 "  Prev Close:     {}",
                 fmt_or_na(quote.previous_close)
             )),
             Line::from(format!("  Open:           {}", fmt_or_na(quote.open))),
-            Line::from(format!("  Day High:       {}", fmt_or_na(quote.day_high))),
-            Line::from(format!("  Day Low:        {}", fmt_or_na(quote.day_low))),
-            Line::from(format!("  52w High:       {}", fmt_or_na(quote.year_high))),
-            Line::from(format!("  52w Low:        {}", fmt_or_na(quote.year_low))),
+            Line::from(""),
+            Line::from(format!(
+                "  Day Range:      {} - {}",
+                fmt_or_na(quote.day_low),
+                fmt_or_na(quote.day_high)
+            )),
+            Line::from(format!("                  {}", day_range_bar)),
+            Line::from(""),
+            Line::from(format!(
+                "  52w Range:      {} - {}",
+                fmt_or_na(quote.year_low),
+                fmt_or_na(quote.year_high)
+            )),
+            Line::from(format!("                  {}", year_range_bar)),
+            Line::from(""),
             Line::from(format!("  Volume:         {}", format_volume(quote.volume))),
             Line::from(format!(
                 "  Avg Volume:     {}",
@@ -710,13 +767,43 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
             Line::from(format!("  Exchange:       {}", quote.exchange)),
             Line::from(format!("  Currency:       {}", quote.currency)),
             Line::from(format!("  Type:           {}", quote.quote_type)),
+            Line::from(format!("  Market:         {}", quote.market_state)),
             Line::from(format!(
                 "  Timestamp:      {}",
                 quote.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
             )),
-            Line::from(""),
-            Line::from("  Press any key to close"),
         ];
+
+        // Sparkline history if available
+        if let Some(history) = app.price_history.get(&quote.symbol) {
+            if history.len() > 1 {
+                let data = history.to_sparkline_data();
+                let prices = history.as_slice();
+                let min = prices.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max = prices.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                detail_text.push(Line::from(""));
+                detail_text.push(Line::from(format!(
+                    "  Price History:  {} pts ({:.2} - {:.2})",
+                    data.len(),
+                    min,
+                    max
+                )));
+            }
+        }
+
+        // Currency conversion info
+        if app.currency_convert && quote.currency != app.display_currency {
+            let converted = app.convert_price(quote.price, &quote.currency);
+            detail_text.push(Line::from(format!(
+                "  Converted:      {}{:.2} {}",
+                app.currency_symbol(),
+                converted,
+                app.display_currency
+            )));
+        }
+
+        detail_text.push(Line::from(""));
+        detail_text.push(Line::from("  Press any key to close"));
 
         let detail = Paragraph::new(detail_text)
             .block(
@@ -758,6 +845,55 @@ fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
 
     frame.render_widget(Clear, area);
     frame.render_widget(alert_widget, area);
+}
+
+/// Render sparkline charts sidebar.
+fn render_sparklines(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
+    let filtered = app.visible_quotes();
+    let visible: Vec<_> = filtered.iter().skip(app.scroll_offset).collect();
+
+    // 1 row for header + 1 row per quote
+    let mut constraints = vec![Constraint::Length(1)];
+    for _ in &visible {
+        constraints.push(Constraint::Length(1));
+    }
+    constraints.push(Constraint::Min(0));
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(area);
+
+    // Header
+    let header = Paragraph::new(Span::styled(
+        " TREND",
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    ))
+    .style(Style::default().bg(colors.header_bg));
+    frame.render_widget(header, rows[0]);
+
+    for (i, quote) in visible.iter().enumerate() {
+        if i + 1 >= rows.len() - 1 {
+            break;
+        }
+        let row_area = rows[i + 1];
+        if let Some(history) = app.price_history.get(&quote.symbol) {
+            let data = history.to_sparkline_data();
+            if !data.is_empty() {
+                let color = if quote.change_percent >= 0.0 {
+                    colors.gain
+                } else {
+                    colors.loss
+                };
+                let spark = Sparkline::default()
+                    .data(&data)
+                    .style(Style::default().fg(color));
+                frame.render_widget(spark, row_area);
+            }
+        }
+    }
 }
 
 /// Render batch mode output (non-interactive).
@@ -1003,5 +1139,45 @@ mod tests {
         let result = truncate_string(s, 6);
         assert!(result.len() <= 9); // byte len, not char len
         assert!(result.ends_with("..."));
+    }
+
+    // --- range_bar tests ---
+
+    #[test]
+    fn test_range_bar_at_low() {
+        let bar = range_bar(100.0, 200.0, 100.0, 10);
+        assert!(bar.starts_with('●'));
+    }
+
+    #[test]
+    fn test_range_bar_at_high() {
+        let bar = range_bar(100.0, 200.0, 200.0, 10);
+        assert!(bar.ends_with('●'));
+    }
+
+    #[test]
+    fn test_range_bar_at_mid() {
+        let bar = range_bar(0.0, 100.0, 50.0, 11);
+        assert!(bar.contains('●'));
+    }
+
+    #[test]
+    fn test_range_bar_zero_range() {
+        let bar = range_bar(100.0, 100.0, 100.0, 10);
+        assert!(bar.contains("100.00"));
+    }
+
+    #[test]
+    fn test_range_bar_tiny_width() {
+        let bar = range_bar(0.0, 100.0, 50.0, 2);
+        assert!(bar.contains("0.00"));
+    }
+
+    #[test]
+    fn test_range_bar_clamped() {
+        let bar = range_bar(100.0, 200.0, 250.0, 10);
+        assert!(bar.ends_with('●'));
+        let bar2 = range_bar(100.0, 200.0, 50.0, 10);
+        assert!(bar2.starts_with('●'));
     }
 }

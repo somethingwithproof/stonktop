@@ -44,6 +44,10 @@ pub struct Config {
     /// Custom crypto symbol shortcuts
     #[serde(default)]
     pub shortcuts: HashMap<String, String>,
+
+    /// Currency conversion settings
+    #[serde(default)]
+    pub currency: CurrencyConfig,
 }
 
 /// Alert configuration.
@@ -216,6 +220,27 @@ fn default_header_color() -> String {
 }
 fn default_border_color() -> String {
     "#444444".to_string()
+}
+
+/// Currency conversion settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CurrencyConfig {
+    /// Display currency (ISO 4217)
+    #[serde(default = "default_currency")]
+    pub display: String,
+
+    /// Whether to convert prices to display currency
+    #[serde(default)]
+    pub convert: bool,
+}
+
+impl Default for CurrencyConfig {
+    fn default() -> Self {
+        Self {
+            display: default_currency(),
+            convert: false,
+        }
+    }
 }
 
 impl Config {
@@ -465,5 +490,40 @@ mod tests {
     fn test_sample_config_valid_toml() {
         let sample = sample_config();
         let _config: Config = toml::from_str(sample).expect("sample config should be valid TOML");
+    }
+
+    // --- CurrencyConfig tests ---
+
+    #[test]
+    fn test_currency_config_defaults() {
+        let config = CurrencyConfig::default();
+        assert_eq!(config.display, "USD");
+        assert!(!config.convert);
+    }
+
+    #[test]
+    fn test_currency_config_from_toml() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(
+            tmp,
+            r#"
+[currency]
+display = "EUR"
+convert = true
+"#
+        )
+        .unwrap();
+        let config = Config::load(&tmp.path().to_path_buf()).unwrap();
+        assert_eq!(config.currency.display, "EUR");
+        assert!(config.currency.convert);
+    }
+
+    #[test]
+    fn test_currency_config_missing_uses_defaults() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(tmp, "[watchlist]\nsymbols = [\"AAPL\"]").unwrap();
+        let config = Config::load(&tmp.path().to_path_buf()).unwrap();
+        assert_eq!(config.currency.display, "USD");
+        assert!(!config.currency.convert);
     }
 }

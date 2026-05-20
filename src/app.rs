@@ -5,11 +5,29 @@
 use crate::api::{expand_symbol_with, YahooFinanceClient};
 use crate::cli::Args;
 use crate::config::Config;
-use crate::models::{Alert, Holding, Quote, QuoteProvider, SortDirection, SortOrder};
+use crate::models::{Alert, Holding, PriceHistory, Quote, QuoteProvider, SortDirection, SortOrder};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use std::collections::HashMap;
+use std::path::Path;
 use std::time::{Duration, Instant};
+
+/// Data structure for JSON export/import of watchlists and portfolios.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExportData {
+    pub symbols: Vec<String>,
+    pub holdings: Vec<Holding>,
+    pub quotes: Vec<Quote>,
+}
+
+/// RFC 4180 CSV field escaping.
+fn csv_escape_field(field: &str) -> String {
+    if field.contains(',') || field.contains('"') || field.contains('\n') || field.contains('\r') {
+        format!("\"{}\"", field.replace('"', "\"\""))
+    } else {
+        field.to_string()
+    }
+}
 
 /// Input mode for interactive commands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -91,6 +109,20 @@ pub struct App {
     pub crypto_shortcuts: HashMap<String, String>,
     /// Terminal height in rows (updated each frame from the main loop)
     pub terminal_height: u16,
+    /// Price history per symbol for sparkline charts
+    pub price_history: HashMap<String, PriceHistory>,
+    /// Maximum sparkline data points
+    pub sparkline_width: usize,
+    /// Whether to show sparkline column
+    pub show_sparklines: bool,
+    /// Currency conversion rates (from_currency -> rate to display currency)
+    pub currency_rates: HashMap<String, f64>,
+    /// Display currency (ISO 4217)
+    pub display_currency: String,
+    /// Whether currency conversion is enabled
+    pub currency_convert: bool,
+    /// Whether desktop notifications are enabled for alerts
+    pub notifications_enabled: bool,
 }
 
 impl App {
@@ -229,6 +261,13 @@ impl App {
             config_path: Config::default_config_path(),
             crypto_shortcuts: custom_shortcuts,
             terminal_height: 24,
+            price_history: HashMap::new(),
+            sparkline_width: 20,
+            show_sparklines: false,
+            currency_rates: HashMap::new(),
+            display_currency: config.currency.display.clone(),
+            currency_convert: config.currency.convert,
+            notifications_enabled: true,
         })
     }
 
@@ -248,9 +287,17 @@ impl App {
 
         match self.client.get_quotes(&self.symbols).await {
             Ok(quotes) => {
+                for q in &quotes {
+                    let history = self
+                        .price_history
+                        .entry(q.symbol.clone())
+                        .or_insert_with(|| PriceHistory::new(self.sparkline_width));
+                    history.push(q.price);
+                }
                 self.quotes = quotes;
                 self.sort_quotes();
                 self.check_alerts();
+                self.send_alert_notifications();
                 self.last_refresh = Some(Instant::now());
                 self.iteration += 1;
                 self.error = None;
@@ -529,6 +576,128 @@ impl App {
         Ok(())
     }
 
+    /// Send desktop notifications for triggered alerts.
+    fn send_alert_notifications(&self) {
+        if !self.notifications_enabled {
+            return;
+        }
+        for (symbol, message) in &self.triggered_alerts {
+            let _ = notify_rust::Notification::new()
+                .summary(&format!("Stonktop Alert: {}", symbol))
+                .body(message)
+                .timeout(notify_rust::Timeout::Milliseconds(5000))
+                .show();
+        }
+    }
+
+    /// Export watchlist to a file (JSON or CSV).
+    pub fn export_watchlist(&self, path: &Path) -> Result<()> {
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("json");
+        match ext {
+            "csv" => {
+                let mut out = String::from("symbol,name,price,change,change_percent,volume\n");
+                for q in &self.quotes {
+                    out.push_str(&format!(
+                        "{},{},{:.2},{:+.2},{:+.2},{}\n",
+                        csv_escape_field(&q.symbol),
+                        csv_escape_field(&q.name),
+                        q.price,
+                        q.change,
+                        q.change_percent,
+                        q.volume,
+                    ));
+                }
+                std::fs::write(path, out)?;
+            }
+            _ => {
+                let data = ExportData {
+                    symbols: self.symbols.clone(),
+                    holdings: self.holdings.values().cloned().collect(),
+                    quotes: self.quotes.clone(),
+                };
+                let json = serde_json::to_string_pretty(&data)?;
+                std::fs::write(path, json)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Import watchlist from a file (JSON or CSV).
+    #[allow(dead_code)]
+    pub fn import_watchlist(&mut self, path: &Path) -> Result<()> {
+        let content = std::fs::read_to_string(path)?;
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("json");
+        match ext {
+            "csv" => {
+                for line in content.lines().skip(1) {
+                    if let Some(symbol) = line.split(',').next() {
+                        let sym = symbol.trim().trim_matches('"');
+                        if !sym.is_empty() {
+                            self.add_symbol(&sym.to_uppercase());
+                        }
+                    }
+                }
+            }
+            _ => {
+                let data: ExportData = serde_json::from_str(&content)?;
+                for sym in &data.symbols {
+                    self.add_symbol(sym);
+                }
+                for holding in data.holdings {
+                    self.holdings
+                        .entry(holding.symbol.clone())
+                        .or_insert(holding);
+                }
+            }
+        }
+        self.last_refresh = None;
+        Ok(())
+    }
+
+    /// Update currency conversion rates from the API.
+    #[allow(dead_code)]
+    pub async fn refresh_currency_rates(&mut self) -> Result<()> {
+        if !self.currency_convert || self.display_currency == "USD" {
+            return Ok(());
+        }
+        let pair = format!("USD{}=X", self.display_currency);
+        if let Ok(quotes) = self.client.get_quotes(std::slice::from_ref(&pair)).await {
+            if let Some(q) = quotes.first() {
+                self.currency_rates.insert("USD".to_string(), q.price);
+            }
+        }
+        Ok(())
+    }
+
+    /// Convert a price from USD to the display currency.
+    pub fn convert_price(&self, price: f64, from_currency: &str) -> f64 {
+        if !self.currency_convert || from_currency == self.display_currency {
+            return price;
+        }
+        if let Some(&rate) = self.currency_rates.get(from_currency) {
+            price * rate
+        } else {
+            price
+        }
+    }
+
+    /// Get the display currency symbol.
+    pub fn currency_symbol(&self) -> &str {
+        match self.display_currency.as_str() {
+            "USD" => "$",
+            "EUR" => "€",
+            "GBP" => "£",
+            "JPY" => "¥",
+            "CNY" => "¥",
+            "KRW" => "₩",
+            "INR" => "₹",
+            "BRL" => "R$",
+            "CAD" => "C$",
+            "AUD" => "A$",
+            _ => "$",
+        }
+    }
+
     /// Get time since last refresh as human readable string.
     pub fn time_since_refresh(&self) -> String {
         match self.last_refresh {
@@ -689,6 +858,21 @@ impl App {
             // Refresh
             KeyCode::Char(' ') | KeyCode::Char('R') => {
                 self.last_refresh = None; // Force refresh on next tick
+            }
+
+            // Sparklines toggle
+            KeyCode::Char('S') => {
+                self.show_sparklines = !self.show_sparklines;
+            }
+
+            // Export watchlist
+            KeyCode::Char('e') => {
+                let path = dirs::data_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    .join("stonktop_export.json");
+                if let Err(e) = self.export_watchlist(&path) {
+                    self.error = Some(format!("Export failed: {}", e));
+                }
             }
 
             // Groups
@@ -1352,5 +1536,233 @@ mod tests {
         ));
         // Should return Ok because path doesn't exist (skip save)
         assert!(app.save_watchlist().is_ok());
+    }
+
+    // --- Sparkline / Price History tests ---
+
+    #[tokio::test]
+    async fn test_refresh_records_price_history() {
+        let mock = MockProvider {
+            quotes: vec![Quote {
+                symbol: "AAPL".into(),
+                name: "Apple".into(),
+                price: 195.0,
+                ..Quote::default()
+            }],
+        };
+
+        let args = Args::parse_from(["stonktop", "-s", "AAPL", "-b", "-n", "1"]);
+        let config = Config::default();
+        let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
+
+        app.refresh().await.unwrap();
+        assert_eq!(app.price_history.get("AAPL").unwrap().len(), 1);
+
+        // Second refresh re-uses the mock which returns same price
+        app.last_refresh = None;
+        app.refresh().await.unwrap();
+        assert_eq!(app.price_history.get("AAPL").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_sparkline_toggle() {
+        let mut app = test_app();
+        assert!(!app.show_sparklines);
+        app.handle_key_event(KeyCode::Char('S'), KeyModifiers::NONE);
+        assert!(app.show_sparklines);
+        app.handle_key_event(KeyCode::Char('S'), KeyModifiers::NONE);
+        assert!(!app.show_sparklines);
+    }
+
+    #[test]
+    fn test_sparkline_toggle_blocked_in_secure_mode() {
+        let mut app = test_app();
+        app.secure_mode = true;
+        app.handle_key_event(KeyCode::Char('S'), KeyModifiers::NONE);
+        assert!(!app.show_sparklines);
+    }
+
+    // --- Export / Import tests ---
+
+    #[test]
+    fn test_export_json() {
+        let app = test_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("export.json");
+        app.export_watchlist(&path).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let data: ExportData = serde_json::from_str(&content).unwrap();
+        assert_eq!(data.symbols, app.symbols);
+        assert_eq!(data.quotes.len(), app.quotes.len());
+    }
+
+    #[test]
+    fn test_export_csv() {
+        let app = test_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("export.csv");
+        app.export_watchlist(&path).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines[0], "symbol,name,price,change,change_percent,volume");
+        assert_eq!(lines.len(), 3); // header + 2 quotes
+        assert!(lines[1].starts_with("AAPL,"));
+    }
+
+    #[test]
+    fn test_import_json() {
+        let mut app = test_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("import.json");
+
+        let data = ExportData {
+            symbols: vec!["MSFT".to_string(), "TSLA".to_string()],
+            holdings: vec![],
+            quotes: vec![],
+        };
+        let json = serde_json::to_string(&data).unwrap();
+        std::fs::write(&path, json).unwrap();
+
+        app.import_watchlist(&path).unwrap();
+        assert!(app.symbols.contains(&"MSFT".to_string()));
+        assert!(app.symbols.contains(&"TSLA".to_string()));
+    }
+
+    #[test]
+    fn test_import_csv() {
+        let mut app = test_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("import.csv");
+
+        std::fs::write(&path, "symbol,name\nMSFT,Microsoft\nTSLA,Tesla\n").unwrap();
+
+        app.import_watchlist(&path).unwrap();
+        assert!(app.symbols.contains(&"MSFT".to_string()));
+        assert!(app.symbols.contains(&"TSLA".to_string()));
+    }
+
+    #[test]
+    fn test_import_csv_skips_empty_lines() {
+        let mut app = test_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("import.csv");
+
+        std::fs::write(&path, "symbol\nMSFT\n\n\n").unwrap();
+
+        let initial = app.symbols.len();
+        app.import_watchlist(&path).unwrap();
+        assert_eq!(app.symbols.len(), initial + 1);
+    }
+
+    #[test]
+    fn test_export_import_round_trip() {
+        let app = test_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("round_trip.json");
+        app.export_watchlist(&path).unwrap();
+
+        let mut app2 = test_app();
+        app2.symbols.clear();
+        app2.import_watchlist(&path).unwrap();
+        assert_eq!(app2.symbols.len(), app.symbols.len());
+    }
+
+    #[test]
+    fn test_export_key_handler() {
+        let mut app = test_app();
+        // 'e' should not crash even if export dir doesn't exist
+        app.handle_key_event(KeyCode::Char('e'), KeyModifiers::NONE);
+        // No assertion on success — just verifying no panic
+    }
+
+    // --- Currency conversion tests ---
+
+    #[test]
+    fn test_convert_price_no_conversion() {
+        let app = test_app();
+        assert!((app.convert_price(100.0, "USD") - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_convert_price_with_rate() {
+        let mut app = test_app();
+        app.currency_convert = true;
+        app.display_currency = "EUR".to_string();
+        app.currency_rates.insert("USD".to_string(), 0.85);
+        assert!((app.convert_price(100.0, "USD") - 85.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_convert_price_unknown_currency() {
+        let mut app = test_app();
+        app.currency_convert = true;
+        app.display_currency = "EUR".to_string();
+        // No rate for GBP
+        assert!((app.convert_price(100.0, "GBP") - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_convert_price_same_currency() {
+        let mut app = test_app();
+        app.currency_convert = true;
+        app.display_currency = "EUR".to_string();
+        // Same currency — no conversion
+        assert!((app.convert_price(100.0, "EUR") - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_currency_symbol() {
+        let mut app = test_app();
+        assert_eq!(app.currency_symbol(), "$");
+        app.display_currency = "EUR".to_string();
+        assert_eq!(app.currency_symbol(), "€");
+        app.display_currency = "GBP".to_string();
+        assert_eq!(app.currency_symbol(), "£");
+        app.display_currency = "JPY".to_string();
+        assert_eq!(app.currency_symbol(), "¥");
+        app.display_currency = "INR".to_string();
+        assert_eq!(app.currency_symbol(), "₹");
+        app.display_currency = "BRL".to_string();
+        assert_eq!(app.currency_symbol(), "R$");
+        app.display_currency = "UNKNOWN".to_string();
+        assert_eq!(app.currency_symbol(), "$");
+    }
+
+    // --- Notifications disabled test ---
+
+    #[test]
+    fn test_notifications_default_enabled() {
+        let app = test_app();
+        assert!(app.notifications_enabled);
+    }
+
+    // --- CSV escape field ---
+
+    #[test]
+    fn test_csv_escape_field() {
+        assert_eq!(csv_escape_field("simple"), "simple");
+        assert_eq!(csv_escape_field("has,comma"), "\"has,comma\"");
+        assert_eq!(csv_escape_field("has\"quote"), "\"has\"\"quote\"");
+    }
+
+    // --- ExportData serde ---
+
+    #[test]
+    fn test_export_data_serde_round_trip() {
+        let data = ExportData {
+            symbols: vec!["AAPL".to_string()],
+            holdings: vec![crate::models::Holding {
+                symbol: "AAPL".to_string(),
+                quantity: 10.0,
+                cost_basis: 150.0,
+            }],
+            quotes: vec![],
+        };
+        let json = serde_json::to_string(&data).unwrap();
+        let loaded: ExportData = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.symbols, data.symbols);
+        assert_eq!(loaded.holdings.len(), 1);
     }
 }
