@@ -3,7 +3,7 @@
 TUI application for real-time stock and cryptocurrency price monitoring (top-like interface).
 
 ## Stack
-- Rust (edition 2021, MSRV 1.86)
+- Rust (edition 2021, MSRV 1.88)
 - ratatui (terminal UI)
 - crossterm (terminal backend)
 - tokio (async runtime)

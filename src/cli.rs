@@ -90,10 +90,6 @@ pub struct Args {
     #[arg(long, value_enum, default_value = "table")]
     pub format: OutputFormat,
 
-    /// Color mode (auto, always, never)
-    #[arg(long, value_enum, default_value = "auto")]
-    pub color: ColorMode,
-
     /// Generate a sample configuration file
     #[arg(long)]
     pub init: bool,
@@ -200,8 +196,8 @@ impl Args {
 /// Spoiler: it probably is, unless you're piping your tears to /dev/null.
 #[allow(dead_code)] // Used by use_colors which is reserved for future features
 fn atty_check() -> bool {
-    // Simple check - in production you might use the `atty` crate
-    std::env::var("TERM").is_ok()
+    use std::io::IsTerminal;
+    std::io::stdout().is_terminal()
 }
 
 #[cfg(test)]

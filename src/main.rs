@@ -150,10 +150,15 @@ async fn run_app(
     app: &mut App,
 ) -> Result<()> {
     let tick_rate = Duration::from_millis(100);
+    // Layout: header(3) + table_header(1) = 4 rows before data rows
+    const TABLE_DATA_START_ROW: usize = 4;
 
     loop {
         // Draw UI
         terminal.draw(|f| ui::render(f, app))?;
+        if let Ok(size) = terminal.size() {
+            app.terminal_height = size.height;
+        }
 
         // Handle events with timeout
         if crossterm::event::poll(tick_rate)? {
@@ -176,10 +181,9 @@ async fn run_app(
                             MouseEventKind::ScrollUp => app.select_up(),
                             MouseEventKind::ScrollDown => app.select_down(),
                             MouseEventKind::Down(_) => {
-                                // Rows start at y=4 (header=3 lines + table header=1)
                                 let row = mouse.row as usize;
-                                if row >= 4 {
-                                    let idx = row - 4 + app.scroll_offset;
+                                if row >= TABLE_DATA_START_ROW {
+                                    let idx = row - TABLE_DATA_START_ROW + app.scroll_offset;
                                     let visible_len = app.visible_quotes().len();
                                     if idx < visible_len {
                                         app.selected = idx;

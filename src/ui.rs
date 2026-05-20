@@ -362,43 +362,55 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
         .style(Style::default().bg(colors.header_bg))
         .height(1);
 
-    let rows = app.quotes.iter().enumerate().filter_map(|(i, quote)| {
-        let holding = app.holdings.get(&quote.symbol)?;
-        let is_selected = i == app.selected;
+    let holdings_data: Vec<_> = app
+        .quotes
+        .iter()
+        .filter_map(|quote| {
+            let holding = app.holdings.get(&quote.symbol)?;
+            Some((quote, holding))
+        })
+        .collect();
 
-        let value = holding.current_value(quote.price);
-        let cost = holding.total_cost();
-        let pnl = holding.profit_loss(quote.price);
-        let pnl_pct = holding.profit_loss_percent(quote.price);
-        let today = holding.quantity * quote.change;
+    let rows = holdings_data
+        .iter()
+        .enumerate()
+        .skip(app.scroll_offset)
+        .map(|(display_idx, (quote, holding))| {
+            let is_selected = display_idx == app.selected;
 
-        let pnl_color = if pnl >= 0.0 { colors.gain } else { colors.loss };
-        let today_color = if today >= 0.0 {
-            colors.gain
-        } else {
-            colors.loss
-        };
+            let value = holding.current_value(quote.price);
+            let cost = holding.total_cost();
+            let pnl = holding.profit_loss(quote.price);
+            let pnl_pct = holding.profit_loss_percent(quote.price);
+            let today = holding.quantity * quote.change;
 
-        let row_style = if is_selected {
-            Style::default().bg(colors.selected_bg)
-        } else {
-            Style::default()
-        };
+            let pnl_color = if pnl >= 0.0 { colors.gain } else { colors.loss };
+            let today_color = if today >= 0.0 {
+                colors.gain
+            } else {
+                colors.loss
+            };
 
-        let cells = vec![
-            Cell::from(quote.symbol.clone()),
-            Cell::from(truncate_string(&quote.name, 15)),
-            Cell::from(format_price(quote.price)),
-            Cell::from(format!("{:.4}", holding.quantity)),
-            Cell::from(format!("${:.2}", value)),
-            Cell::from(format!("${:.2}", cost)),
-            Cell::from(format!("{:+.2}", pnl)).style(Style::default().fg(pnl_color)),
-            Cell::from(format!("{:+.2}%", pnl_pct)).style(Style::default().fg(pnl_color)),
-            Cell::from(format!("{:+.2}", today)).style(Style::default().fg(today_color)),
-        ];
+            let row_style = if is_selected {
+                Style::default().bg(colors.selected_bg)
+            } else {
+                Style::default()
+            };
 
-        Some(Row::new(cells).style(row_style))
-    });
+            let cells = vec![
+                Cell::from(quote.symbol.clone()),
+                Cell::from(truncate_string(&quote.name, 15)),
+                Cell::from(format_price(quote.price)),
+                Cell::from(format!("{:.4}", holding.quantity)),
+                Cell::from(format!("${:.2}", value)),
+                Cell::from(format!("${:.2}", cost)),
+                Cell::from(format!("{:+.2}", pnl)).style(Style::default().fg(pnl_color)),
+                Cell::from(format!("{:+.2}%", pnl_pct)).style(Style::default().fg(pnl_color)),
+                Cell::from(format!("{:+.2}", today)).style(Style::default().fg(today_color)),
+            ];
+
+            Row::new(cells).style(row_style)
+        });
 
     let widths = [
         Constraint::Length(10),
@@ -414,9 +426,13 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
 
     let table = Table::new(rows, widths)
         .header(header)
-        .block(Block::default().borders(Borders::NONE));
+        .block(Block::default().borders(Borders::NONE))
+        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-    frame.render_widget(table, area);
+    let adjusted_selected = app.selected.saturating_sub(app.scroll_offset);
+    let mut state = TableState::default();
+    state.select(Some(adjusted_selected));
+    frame.render_stateful_widget(table, area, &mut state);
 }
 
 /// Render the footer with keybindings.
@@ -597,11 +613,11 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 /// Penny stocks get more decimals because every fraction of a cent matters
 /// when you're hoping for that 10,000% gain.
 pub(crate) fn format_price(price: f64) -> String {
-    if price >= 1.0 {
-        // Normal prices get normal formatting
+    if price == 0.0 {
+        "$0.00".to_string()
+    } else if price.abs() >= 1.0 {
         format!("${:.2}", price)
     } else {
-        // Penny stocks and shitcoins need more precision
         format!("${:.6}", price)
     }
 }
@@ -819,20 +835,23 @@ fn render_batch_json(app: &App) {
     }
 }
 
+/// RFC 4180: escape a field that may contain commas, quotes, or newlines.
+fn csv_escape(field: &str) -> String {
+    if field.contains(',') || field.contains('"') || field.contains('\n') || field.contains('\r') {
+        format!("\"{}\"", field.replace('"', "\"\""))
+    } else {
+        field.to_string()
+    }
+}
+
 /// Batch output as CSV — for spreadsheet warriors everywhere.
 fn render_batch_csv(app: &App) {
     println!("symbol,name,price,change,change_percent,volume,market_cap");
     for quote in &app.quotes {
-        // RFC 4180: quote fields that contain commas, quotes, or newlines
-        let name = if quote.name.contains(',') || quote.name.contains('"') {
-            format!("\"{}\"", quote.name.replace('"', "\"\""))
-        } else {
-            quote.name.clone()
-        };
         println!(
             "{},{},{:.2},{:+.2},{:+.2},{},{}",
-            quote.symbol,
-            name,
+            csv_escape(&quote.symbol),
+            csv_escape(&quote.name),
             quote.price,
             quote.change,
             quote.change_percent,
@@ -863,7 +882,22 @@ mod tests {
 
     #[test]
     fn test_format_price_zero() {
-        assert_eq!(format_price(0.0), "$0.000000");
+        assert_eq!(format_price(0.0), "$0.00");
+    }
+
+    #[test]
+    fn test_format_price_negative() {
+        assert_eq!(format_price(-5.50), "$-5.50");
+        assert_eq!(format_price(-0.001234), "$-0.001234");
+    }
+
+    #[test]
+    fn test_csv_escape() {
+        assert_eq!(csv_escape("simple"), "simple");
+        assert_eq!(csv_escape("has,comma"), "\"has,comma\"");
+        assert_eq!(csv_escape("has\"quote"), "\"has\"\"quote\"");
+        assert_eq!(csv_escape("has\nnewline"), "\"has\nnewline\"");
+        assert_eq!(csv_escape("has\rcarriage"), "\"has\rcarriage\"");
     }
 
     // --- format_volume tests ---

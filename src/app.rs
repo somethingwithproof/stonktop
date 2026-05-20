@@ -89,6 +89,8 @@ pub struct App {
     pub config_path: Option<std::path::PathBuf>,
     /// Configurable crypto shortcuts from config
     pub crypto_shortcuts: HashMap<String, String>,
+    /// Terminal height in rows (updated each frame from the main loop)
+    pub terminal_height: u16,
 }
 
 impl App {
@@ -201,6 +203,7 @@ impl App {
             triggered_alerts: Vec::new(),
             config_path: Config::default_config_path(),
             crypto_shortcuts: custom_shortcuts,
+            terminal_height: 24,
         })
     }
 
@@ -304,8 +307,12 @@ impl App {
         let max = self.visible_quotes().len().saturating_sub(1);
         if self.selected < max {
             self.selected += 1;
-            // Keep the selected row visible (assume ~20 visible rows)
-            let visible_rows = 20usize;
+            // header(3) + table_header(1) + footer(1) = 5 rows of chrome
+            let visible_rows = if self.terminal_height > 5 {
+                (self.terminal_height - 5) as usize
+            } else {
+                1
+            };
             if self.selected >= self.scroll_offset + visible_rows {
                 self.scroll_offset = self.selected - visible_rows + 1;
             }
@@ -321,6 +328,14 @@ impl App {
     /// Move selection to bottom.
     pub fn select_bottom(&mut self) {
         self.selected = self.visible_quotes().len().saturating_sub(1);
+        let visible_rows = if self.terminal_height > 5 {
+            (self.terminal_height - 5) as usize
+        } else {
+            1
+        };
+        if self.selected >= visible_rows {
+            self.scroll_offset = self.selected - visible_rows + 1;
+        }
     }
 
     /// Toggle help display.
@@ -395,7 +410,10 @@ impl App {
     pub fn add_symbol(&mut self, symbol: &str) {
         let expanded = expand_symbol_with(symbol, &self.crypto_shortcuts);
         if !self.symbols.contains(&expanded) {
-            self.symbols.push(expanded);
+            self.symbols.push(expanded.clone());
+            if let Some(all_group) = self.group_symbols.first_mut() {
+                all_group.push(expanded);
+            }
         }
     }
 
@@ -404,8 +422,11 @@ impl App {
         let expanded = expand_symbol_with(symbol, &self.crypto_shortcuts);
         self.symbols.retain(|s| s != &expanded);
         self.quotes.retain(|q| q.symbol != expanded);
-        if self.selected >= self.quotes.len() {
-            self.selected = self.quotes.len().saturating_sub(1);
+        for group in &mut self.group_symbols {
+            group.retain(|s| s != &expanded);
+        }
+        if self.selected >= self.visible_quotes().len() {
+            self.selected = self.visible_quotes().len().saturating_sub(1);
         }
     }
 
@@ -613,12 +634,12 @@ impl App {
             KeyCode::Char('f') => self.toggle_fundamentals(),
             KeyCode::Char('h') | KeyCode::Char('?') => self.toggle_help(),
 
-            // Symbol management
-            KeyCode::Char('a') => {
+            // Symbol management (blocked in secure mode)
+            KeyCode::Char('a') if !self.secure_mode => {
                 self.input_mode = InputMode::AddSymbol;
                 self.input_buffer.clear();
             }
-            KeyCode::Char('d') => {
+            KeyCode::Char('d') if !self.secure_mode => {
                 if let Some(quote) = self.selected_quote() {
                     let symbol = quote.symbol.clone();
                     self.remove_symbol(&symbol);
@@ -1126,6 +1147,50 @@ mod tests {
             !app.show_fundamentals,
             "secure mode should block fundamentals toggle"
         );
+    }
+
+    #[test]
+    fn test_secure_mode_blocks_add_remove() {
+        let mut app = test_app();
+        app.secure_mode = true;
+        let sym_count = app.symbols.len();
+
+        app.handle_key_event(KeyCode::Char('a'), KeyModifiers::NONE);
+        assert_eq!(
+            app.input_mode,
+            InputMode::Normal,
+            "secure mode should block add symbol"
+        );
+
+        app.handle_key_event(KeyCode::Char('d'), KeyModifiers::NONE);
+        assert_eq!(
+            app.symbols.len(),
+            sym_count,
+            "secure mode should block remove symbol"
+        );
+    }
+
+    #[test]
+    fn test_add_symbol_syncs_group_symbols() {
+        let mut app = test_app();
+        let initial_all = app.group_symbols[0].len();
+        app.add_symbol("MSFT");
+        assert!(app.symbols.contains(&"MSFT".to_string()));
+        assert_eq!(
+            app.group_symbols[0].len(),
+            initial_all + 1,
+            "group_symbols[0] should grow"
+        );
+        assert!(app.group_symbols[0].contains(&"MSFT".to_string()));
+    }
+
+    #[test]
+    fn test_remove_symbol_syncs_group_symbols() {
+        let mut app = test_app();
+        assert!(app.group_symbols[0].contains(&"AAPL".to_string()));
+        app.remove_symbol("AAPL");
+        assert!(!app.symbols.contains(&"AAPL".to_string()));
+        assert!(!app.group_symbols[0].contains(&"AAPL".to_string()));
     }
 
     // --- Mock QuoteProvider tests ---
