@@ -4,7 +4,33 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "build(deps)"
+    labels:
+      - "dependencies"
+      - "rust"
+    groups:
+      rust-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+      rust-dev:
+        dependency-type: "development"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps)"
+    labels:
+      - "dependencies"
+      - "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
