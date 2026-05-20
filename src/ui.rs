@@ -675,18 +675,22 @@ pub(crate) fn truncate_string(s: &str, max_len: usize) -> String {
 }
 
 /// Build a visual range bar showing where a value sits between low and high.
+/// The ● marker is placed between ├ and ┤ without overwriting the endpoints.
 fn range_bar(low: f64, high: f64, current: f64, width: usize) -> String {
     if high <= low || width < 3 {
         return format!("{:.2} — {:.2}", low, high);
     }
     let pos = ((current - low) / (high - low)).clamp(0.0, 1.0);
-    let idx = (pos * (width - 1) as f64).round() as usize;
+    let inner = width - 2;
+    let idx = if inner <= 1 {
+        1
+    } else {
+        1 + (pos * (inner - 1) as f64).round() as usize
+    };
     let mut bar: Vec<char> = vec!['─'; width];
     bar[0] = '├';
     bar[width - 1] = '┤';
-    if idx < width {
-        bar[idx] = '●';
-    }
+    bar[idx] = '●';
     bar.iter().collect()
 }
 
@@ -777,17 +781,15 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
         // Sparkline history if available
         if let Some(history) = app.price_history.get(&quote.symbol) {
             if history.len() > 1 {
-                let data = history.to_sparkline_data();
-                let prices = history.as_slice();
-                let min = prices.iter().cloned().fold(f64::INFINITY, f64::min);
-                let max = prices.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                detail_text.push(Line::from(""));
-                detail_text.push(Line::from(format!(
-                    "  Price History:  {} pts ({:.2} - {:.2})",
-                    data.len(),
-                    min,
-                    max
-                )));
+                if let Some((min, max)) = history.min_max() {
+                    detail_text.push(Line::from(""));
+                    detail_text.push(Line::from(format!(
+                        "  Price History:  {} pts ({:.2} - {:.2})",
+                        history.len(),
+                        min,
+                        max
+                    )));
+                }
             }
         }
 
@@ -880,15 +882,15 @@ fn render_sparklines(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors
         }
         let row_area = rows[i + 1];
         if let Some(history) = app.price_history.get(&quote.symbol) {
-            let data = history.to_sparkline_data();
-            if !data.is_empty() {
+            if history.len() > 1 {
+                let data = history.sparkline_data();
                 let color = if quote.change_percent >= 0.0 {
                     colors.gain
                 } else {
                     colors.loss
                 };
                 let spark = Sparkline::default()
-                    .data(&data)
+                    .data(data)
                     .style(Style::default().fg(color));
                 frame.render_widget(spark, row_area);
             }
@@ -1146,19 +1148,23 @@ mod tests {
     #[test]
     fn test_range_bar_at_low() {
         let bar = range_bar(100.0, 200.0, 100.0, 10);
-        assert!(bar.starts_with('●'));
+        assert!(bar.starts_with("├●"));
+        assert!(bar.ends_with('┤'));
     }
 
     #[test]
     fn test_range_bar_at_high() {
         let bar = range_bar(100.0, 200.0, 200.0, 10);
-        assert!(bar.ends_with('●'));
+        assert!(bar.ends_with("●┤"));
+        assert!(bar.starts_with('├'));
     }
 
     #[test]
     fn test_range_bar_at_mid() {
         let bar = range_bar(0.0, 100.0, 50.0, 11);
         assert!(bar.contains('●'));
+        assert!(bar.starts_with('├'));
+        assert!(bar.ends_with('┤'));
     }
 
     #[test]
@@ -1176,8 +1182,31 @@ mod tests {
     #[test]
     fn test_range_bar_clamped() {
         let bar = range_bar(100.0, 200.0, 250.0, 10);
-        assert!(bar.ends_with('●'));
+        assert!(bar.ends_with("●┤"));
+        assert!(bar.starts_with('├'));
         let bar2 = range_bar(100.0, 200.0, 50.0, 10);
-        assert!(bar2.starts_with('●'));
+        assert!(bar2.starts_with("├●"));
+        assert!(bar2.ends_with('┤'));
+    }
+
+    #[test]
+    fn test_range_bar_width_3() {
+        let bar = range_bar(0.0, 100.0, 50.0, 3);
+        assert_eq!(bar, "├●┤");
+    }
+
+    #[test]
+    fn test_range_bar_endpoints_preserved() {
+        let bar_low = range_bar(0.0, 100.0, 0.0, 10);
+        let chars: Vec<char> = bar_low.chars().collect();
+        assert_eq!(chars[0], '├');
+        assert_eq!(chars[9], '┤');
+        assert_eq!(chars[1], '●');
+
+        let bar_high = range_bar(0.0, 100.0, 100.0, 10);
+        let chars: Vec<char> = bar_high.chars().collect();
+        assert_eq!(chars[0], '├');
+        assert_eq!(chars[9], '┤');
+        assert_eq!(chars[8], '●');
     }
 }

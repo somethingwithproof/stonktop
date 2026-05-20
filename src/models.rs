@@ -4,6 +4,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 /// Represents a financial quote for a stock or cryptocurrency.
 /// Contains all the numbers you need to feel emotions.
@@ -211,29 +212,92 @@ pub trait QuoteProvider: Send + Sync {
 }
 
 /// Rolling buffer of recent prices for sparkline rendering.
-#[derive(Debug, Clone, Default)]
+///
+/// Uses a VecDeque for O(1) front eviction and eagerly caches sparkline data
+/// and min/max on each push so rendering is allocation-free.
+#[derive(Debug, Clone)]
 pub struct PriceHistory {
-    prices: Vec<f64>,
+    prices: VecDeque<f64>,
     max_len: usize,
+    sparkline_cache: Vec<u64>,
+    min_max_cache: Option<(f64, f64)>,
+}
+
+impl Default for PriceHistory {
+    fn default() -> Self {
+        Self {
+            prices: VecDeque::new(),
+            max_len: 1,
+            sparkline_cache: Vec::new(),
+            min_max_cache: None,
+        }
+    }
 }
 
 impl PriceHistory {
     pub fn new(max_len: usize) -> Self {
+        assert!(max_len > 0, "PriceHistory max_len must be at least 1");
         Self {
-            prices: Vec::with_capacity(max_len),
+            prices: VecDeque::with_capacity(max_len),
             max_len,
+            sparkline_cache: Vec::new(),
+            min_max_cache: None,
         }
     }
 
     pub fn push(&mut self, price: f64) {
-        if self.prices.len() >= self.max_len {
-            self.prices.remove(0);
+        if !price.is_finite() {
+            return;
         }
-        self.prices.push(price);
+        if self.prices.len() >= self.max_len {
+            self.prices.pop_front();
+        }
+        self.prices.push_back(price);
+        self.recompute_cache();
     }
 
-    pub fn as_slice(&self) -> &[f64] {
-        &self.prices
+    fn recompute_cache(&mut self) {
+        if self.prices.is_empty() {
+            self.sparkline_cache.clear();
+            self.min_max_cache = None;
+            return;
+        }
+
+        let mut min = f64::INFINITY;
+        let mut max = f64::NEG_INFINITY;
+        for &p in &self.prices {
+            if p < min {
+                min = p;
+            }
+            if p > max {
+                max = p;
+            }
+        }
+        self.min_max_cache = Some((min, max));
+
+        let range = max - min;
+        if range == 0.0 {
+            self.sparkline_cache = vec![4; self.prices.len()];
+        } else {
+            self.sparkline_cache = self
+                .prices
+                .iter()
+                .map(|&p| ((p - min) / range * 7.0).round() as u64)
+                .collect();
+        }
+    }
+
+    pub fn sparkline_data(&self) -> &[u64] {
+        &self.sparkline_cache
+    }
+
+    pub fn min_max(&self) -> Option<(f64, f64)> {
+        self.min_max_cache
+    }
+
+    #[allow(dead_code)]
+    pub fn to_vec(&self) -> Vec<f64> {
+        self.prices.iter().copied().collect()
     }
 
     pub fn len(&self) -> usize {
@@ -243,26 +307,6 @@ impl PriceHistory {
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.prices.is_empty()
-    }
-
-    pub fn to_sparkline_data(&self) -> Vec<u64> {
-        if self.prices.is_empty() {
-            return Vec::new();
-        }
-        let min = self.prices.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = self
-            .prices
-            .iter()
-            .cloned()
-            .fold(f64::NEG_INFINITY, f64::max);
-        let range = max - min;
-        if range == 0.0 {
-            return vec![4; self.prices.len()];
-        }
-        self.prices
-            .iter()
-            .map(|&p| ((p - min) / range * 7.0).round() as u64)
-            .collect()
     }
 }
 
@@ -302,7 +346,7 @@ mod tests {
         let h = PriceHistory::new(5);
         assert!(h.is_empty());
         assert_eq!(h.len(), 0);
-        assert_eq!(h.as_slice(), &[] as &[f64]);
+        assert_eq!(h.to_vec(), vec![] as Vec<f64>);
     }
 
     #[test]
@@ -311,7 +355,7 @@ mod tests {
         h.push(100.0);
         h.push(101.0);
         assert_eq!(h.len(), 2);
-        assert_eq!(h.as_slice(), &[100.0, 101.0]);
+        assert_eq!(h.to_vec(), vec![100.0, 101.0]);
     }
 
     #[test]
@@ -323,13 +367,13 @@ mod tests {
         assert_eq!(h.len(), 3);
         h.push(4.0);
         assert_eq!(h.len(), 3);
-        assert_eq!(h.as_slice(), &[2.0, 3.0, 4.0]);
+        assert_eq!(h.to_vec(), vec![2.0, 3.0, 4.0]);
     }
 
     #[test]
     fn test_price_history_sparkline_empty() {
         let h = PriceHistory::new(5);
-        assert!(h.to_sparkline_data().is_empty());
+        assert!(h.sparkline_data().is_empty());
     }
 
     #[test]
@@ -338,8 +382,7 @@ mod tests {
         h.push(100.0);
         h.push(100.0);
         h.push(100.0);
-        let data = h.to_sparkline_data();
-        assert_eq!(data, vec![4, 4, 4]);
+        assert_eq!(h.sparkline_data(), &[4, 4, 4]);
     }
 
     #[test]
@@ -348,7 +391,7 @@ mod tests {
         h.push(0.0);
         h.push(3.5);
         h.push(7.0);
-        let data = h.to_sparkline_data();
+        let data = h.sparkline_data();
         assert_eq!(data[0], 0); // min
         assert_eq!(data[2], 7); // max
     }
@@ -359,7 +402,7 @@ mod tests {
         h.push(100.0);
         h.push(50.0);
         h.push(0.0);
-        let data = h.to_sparkline_data();
+        let data = h.sparkline_data();
         assert_eq!(data[0], 7); // max (100)
         assert_eq!(data[2], 0); // min (0)
     }
@@ -368,8 +411,60 @@ mod tests {
     fn test_price_history_single_value() {
         let mut h = PriceHistory::new(5);
         h.push(42.0);
-        let data = h.to_sparkline_data();
-        assert_eq!(data, vec![4]); // flat = midpoint
+        assert_eq!(h.sparkline_data(), &[4]); // flat = midpoint
+    }
+
+    #[test]
+    #[should_panic(expected = "max_len must be at least 1")]
+    fn test_price_history_zero_max_len_panics() {
+        PriceHistory::new(0);
+    }
+
+    #[test]
+    fn test_price_history_push_nan_ignored() {
+        let mut h = PriceHistory::new(5);
+        h.push(100.0);
+        h.push(f64::NAN);
+        h.push(101.0);
+        assert_eq!(h.len(), 2);
+        assert_eq!(h.to_vec(), vec![100.0, 101.0]);
+    }
+
+    #[test]
+    fn test_price_history_push_infinity_ignored() {
+        let mut h = PriceHistory::new(5);
+        h.push(100.0);
+        h.push(f64::INFINITY);
+        h.push(f64::NEG_INFINITY);
+        h.push(101.0);
+        assert_eq!(h.len(), 2);
+        assert_eq!(h.to_vec(), vec![100.0, 101.0]);
+    }
+
+    #[test]
+    fn test_price_history_min_max_empty() {
+        let h = PriceHistory::new(5);
+        assert!(h.min_max().is_none());
+    }
+
+    #[test]
+    fn test_price_history_min_max() {
+        let mut h = PriceHistory::new(5);
+        h.push(50.0);
+        h.push(100.0);
+        h.push(75.0);
+        let (min, max) = h.min_max().unwrap();
+        assert!((min - 50.0).abs() < f64::EPSILON);
+        assert!((max - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_price_history_sparkline_data_cached() {
+        let mut h = PriceHistory::new(5);
+        h.push(0.0);
+        h.push(7.0);
+        assert_eq!(h.sparkline_data(), &[0, 7]);
+        assert_eq!(h.sparkline_data(), &[0, 7]);
     }
 
     // --- SortDirection tests ---
