@@ -26,7 +26,7 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 ratatui = "0.30"
 crossterm = "0.29"
-tokio = { version = "1.51", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros", "time"] }
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 async-trait = "0.1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
