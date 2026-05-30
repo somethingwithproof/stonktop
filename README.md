@@ -12,7 +12,12 @@ A top-like terminal UI for monitoring stock and cryptocurrency prices in real-ti
 
 - **Real-time Price Monitoring**: Live quotes for stocks and cryptocurrencies
 - **Top-like Interface**: Familiar keyboard controls similar to `top`/`htop`
+- **Sparkline Charts**: Inline price trend visualization in a sidebar
 - **Portfolio Tracking**: Monitor your holdings with P/L calculations
+- **Search & Filter**: Case-insensitive search across symbols and names
+- **Price Alerts**: Desktop notifications when prices cross configured thresholds
+- **Export/Import**: Save and load watchlists as JSON or CSV
+- **Multi-Currency**: Display prices in any currency with live conversion rates
 - **Multiple Sort Options**: Sort by symbol, price, change, volume, market cap
 - **Batch Mode**: Non-interactive output for scripting (like `top -b`)
 - **TOML Configuration**: Easy-to-edit config files
@@ -40,7 +45,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Prerequisites
 
-- **Rust**: Version 1.86 or higher (MSRV)
+- **Rust**: Version 1.88 or higher (MSRV)
 - **Cargo**: Included with Rust installation
 
 ## Installation
@@ -140,11 +145,14 @@ stonktop -c ~/.config/stonktop/custom.toml
 | `--config` | `-c` | Path to configuration file |
 | `--sort` | `-o` | Initial sort field |
 | `--reverse` | `-r` | Reverse sort order |
-| `--top` | `-t` | Show only top N symbols |
 | `--holdings` | `-H` | Show holdings/portfolio view |
 | `--currency` | | Display currency (default: USD) |
 | `--timeout` | | API timeout in seconds (default: 10) |
+| `--format` | | Output format for batch mode: table, json, csv |
+| `--color` | | Color output: auto, always, never |
 | `--verbose` | `-v` | Verbose output |
+| `--init` | | Generate a sample configuration file |
+| `--force` | | Force overwrite existing config (with `--init`) |
 | `--help` | | Show help message |
 | `--version` | `-V` | Show version |
 
@@ -163,6 +171,12 @@ stonktop -c ~/.config/stonktop/custom.toml
 | `s` | Cycle sort field |
 | `r` | Reverse sort order |
 | `1-7` | Sort by column |
+| `Enter`, `d` | Show detail popup for selected symbol |
+| `/` | Search/filter symbols |
+| `a` | Add a symbol to watchlist |
+| `x` | Remove selected symbol |
+| `S` | Toggle sparkline charts sidebar |
+| `e` | Export watchlist to JSON |
 | `H` | Toggle holdings view |
 | `f` | Toggle fundamentals |
 | `Space`, `R` | Force refresh |
@@ -220,6 +234,25 @@ border = "#444444"
 [groups]
 tech = ["AAPL", "GOOGL", "MSFT", "NVDA"]
 crypto = ["BTC-USD", "ETH-USD", "SOL-USD"]
+
+# Multi-currency display (optional)
+[currency]
+display = "EUR"
+convert = true
+
+# Price alerts (optional)
+[[alerts]]
+symbol = "AAPL"
+above = 200.00
+
+[[alerts]]
+symbol = "BTC-USD"
+below = 20000.00
+
+# Custom crypto shortcuts (optional)
+[shortcuts]
+PEPE = "PEPE-USD"
+SHIB = "SHIB-USD"
 ```
 
 ## Symbol Formats
