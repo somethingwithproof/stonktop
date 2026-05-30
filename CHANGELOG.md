@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Sparkline charts: inline price trend visualization in sidebar (`S` to toggle)
+- Enhanced detail view: day/52-week range bars, price history stats, currency info
+- Export/import watchlists: JSON and CSV format (`e` to export)
+- Desktop notifications: OS-level alerts via `notify-rust` when price thresholds are hit
+- Multi-currency support: `[currency]` config section with display currency and conversion
+- Search/filter mode: press `/` for case-insensitive search on symbol and name
+- Price alerts: `[[alerts]]` config with `above`/`below` thresholds and overlay display
+- Configurable crypto shortcuts: `[shortcuts]` config section for custom symbol expansions
+- Persistent watchlist: symbols added/removed at runtime are saved back to config
+- Mouse support: click to select rows, scroll wheel to navigate
+- Market state parsing: pre/post/regular/closed states from Yahoo Finance API
+- Bug report and feature request issue templates
+- Pull request template with test plan checklist
+
+### Changed
+- `PriceHistory` uses `VecDeque` for O(1) front eviction (was O(n) `Vec::remove(0)`)
+- `PriceHistory` rejects `NaN`/`Infinity` prices instead of corrupting sparkline data
+- `PriceHistory` eagerly caches sparkline data and min/max on push (zero-alloc renders)
+- `range_bar()` preserves `├`/`┤` endpoint markers when current price is at extremes
+- Sparkline sidebar and detail view use consistent minimum data threshold (> 1 point)
+- Holdings table respects group/search filter
+- Config `sort_by` and `refresh_interval` now honored when CLI uses defaults
+- Secure mode logic consolidated into single handler
+- `--delay` rejects NaN, Infinity, and non-positive values
+- Trimmed dependency features: reqwest (json + rustls only), chrono (clock + serde + std), futures-util (alloc only)
+
+### Fixed
+- `PriceHistory::new(0)` panics with a clear message instead of latent panic on first push
+- Holdings table selection using wrong index after filtering
+- `group_symbols[0]` synced when adding/removing symbols at runtime
+- `select_bottom` not updating scroll offset
+- CSV output escapes both symbol and name per RFC 4180
+- `format_price` renders `0.0` as `$0.00` (was `$0.000000`)
+- `format_price` handles negative prices correctly
+- `centered_rect` clamps percentages to prevent `u16` underflow
+- Removed duplicate `color` field in Args struct
+- Replaced hardcoded visible rows with terminal-height-based calculation
+
+### Removed
+- Unused `--top`, `--filter`, `--no-header` CLI flags and `FilterType` enum
+- Unused `thiserror` dependency
+- Bogus npm ecosystem from dependabot config
+
+### CI
+- Optimized GitHub Actions: caching, slimmed matrix, concurrency groups, path-ignore
+- Dependabot: grouped updates with conventional commit prefixes, Monday schedule
+- CodeQL: `security-and-quality` query suite, explicit cargo build, caching
+- Release workflow: scoped permissions, fixed secret exposure, security audit gate
+
+### Testing
+- 181 tests total (up from 80), zero clippy warnings
+- PriceHistory: NaN, Infinity, zero max_len, min/max, cached sparkline data
+- range_bar: width-3 minimum, endpoint preservation, clamping
+- Export/import: JSON, CSV, round trip, empty lines
+- Currency conversion, notifications, sparkline toggle, secure mode restrictions
+- Comprehensive search/filter, price alerts, group cycling, mock provider injection
+
 ## [0.3.0] - 2026-02-20
 
 ### Added

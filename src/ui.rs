@@ -10,7 +10,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Sparkline, Table, TableState, Wrap},
     Frame,
 };
 
@@ -97,8 +97,15 @@ pub fn render(frame: &mut Frame, app: &App) {
     // Render header
     render_header(frame, app, chunks[0], &colors);
 
-    // Render main table
-    if app.show_holdings {
+    // Render main table (with optional sparkline area)
+    if app.show_sparklines && !app.show_holdings {
+        let table_spark = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(60), Constraint::Length(22)])
+            .split(chunks[1]);
+        render_quotes_table(frame, app, table_spark[0], &colors);
+        render_sparklines(frame, app, table_spark[1], &colors);
+    } else if app.show_holdings {
         render_holdings_table(frame, app, chunks[1], &colors);
     } else {
         render_quotes_table(frame, app, chunks[1], &colors);
@@ -362,43 +369,55 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
         .style(Style::default().bg(colors.header_bg))
         .height(1);
 
-    let rows = app.quotes.iter().enumerate().filter_map(|(i, quote)| {
-        let holding = app.holdings.get(&quote.symbol)?;
-        let is_selected = i == app.selected;
+    let visible = app.visible_quotes();
+    let holdings_data: Vec<_> = visible
+        .iter()
+        .filter_map(|quote| {
+            let holding = app.holdings.get(&quote.symbol)?;
+            Some((*quote, holding))
+        })
+        .collect();
 
-        let value = holding.current_value(quote.price);
-        let cost = holding.total_cost();
-        let pnl = holding.profit_loss(quote.price);
-        let pnl_pct = holding.profit_loss_percent(quote.price);
-        let today = holding.quantity * quote.change;
+    let rows = holdings_data
+        .iter()
+        .enumerate()
+        .skip(app.scroll_offset)
+        .map(|(display_idx, (quote, holding))| {
+            let is_selected = display_idx == app.selected;
 
-        let pnl_color = if pnl >= 0.0 { colors.gain } else { colors.loss };
-        let today_color = if today >= 0.0 {
-            colors.gain
-        } else {
-            colors.loss
-        };
+            let value = holding.current_value(quote.price);
+            let cost = holding.total_cost();
+            let pnl = holding.profit_loss(quote.price);
+            let pnl_pct = holding.profit_loss_percent(quote.price);
+            let today = holding.quantity * quote.change;
 
-        let row_style = if is_selected {
-            Style::default().bg(colors.selected_bg)
-        } else {
-            Style::default()
-        };
+            let pnl_color = if pnl >= 0.0 { colors.gain } else { colors.loss };
+            let today_color = if today >= 0.0 {
+                colors.gain
+            } else {
+                colors.loss
+            };
 
-        let cells = vec![
-            Cell::from(quote.symbol.clone()),
-            Cell::from(truncate_string(&quote.name, 15)),
-            Cell::from(format_price(quote.price)),
-            Cell::from(format!("{:.4}", holding.quantity)),
-            Cell::from(format!("${:.2}", value)),
-            Cell::from(format!("${:.2}", cost)),
-            Cell::from(format!("{:+.2}", pnl)).style(Style::default().fg(pnl_color)),
-            Cell::from(format!("{:+.2}%", pnl_pct)).style(Style::default().fg(pnl_color)),
-            Cell::from(format!("{:+.2}", today)).style(Style::default().fg(today_color)),
-        ];
+            let row_style = if is_selected {
+                Style::default().bg(colors.selected_bg)
+            } else {
+                Style::default()
+            };
 
-        Some(Row::new(cells).style(row_style))
-    });
+            let cells = vec![
+                Cell::from(quote.symbol.clone()),
+                Cell::from(truncate_string(&quote.name, 15)),
+                Cell::from(format_price(quote.price)),
+                Cell::from(format!("{:.4}", holding.quantity)),
+                Cell::from(format!("${:.2}", value)),
+                Cell::from(format!("${:.2}", cost)),
+                Cell::from(format!("{:+.2}", pnl)).style(Style::default().fg(pnl_color)),
+                Cell::from(format!("{:+.2}%", pnl_pct)).style(Style::default().fg(pnl_color)),
+                Cell::from(format!("{:+.2}", today)).style(Style::default().fg(today_color)),
+            ];
+
+            Row::new(cells).style(row_style)
+        });
 
     let widths = [
         Constraint::Length(10),
@@ -414,9 +433,13 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
 
     let table = Table::new(rows, widths)
         .header(header)
-        .block(Block::default().borders(Borders::NONE));
+        .block(Block::default().borders(Borders::NONE))
+        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-    frame.render_widget(table, area);
+    let adjusted_selected = app.selected.saturating_sub(app.scroll_offset);
+    let mut state = TableState::default();
+    state.select(Some(adjusted_selected));
+    frame.render_stateful_widget(table, area, &mut state);
 }
 
 /// Render the footer with keybindings.
@@ -523,6 +546,7 @@ fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
         Line::from("Display:"),
         Line::from("  H         Toggle holdings view"),
         Line::from("  f         Toggle fundamentals"),
+        Line::from("  S         Toggle sparklines"),
         Line::from("  Tab       Cycle groups"),
         Line::from(""),
         Line::from("Symbols:"),
@@ -530,6 +554,7 @@ fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
         Line::from("  d         Remove symbol"),
         Line::from("  /         Search/filter"),
         Line::from("  Enter     Quote detail"),
+        Line::from("  e         Export watchlist"),
         Line::from(""),
         Line::from("Actions:"),
         Line::from("  Space/R   Force refresh"),
@@ -574,21 +599,23 @@ fn render_error(frame: &mut Frame, error: &str, colors: &UiColors) {
 
 /// Create a centered rectangle.
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let px = percent_x.min(100);
+    let py = percent_y.min(100);
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage((100 - py) / 2),
+            Constraint::Percentage(py),
+            Constraint::Percentage((100 - py) / 2),
         ])
         .split(r);
 
     Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage((100 - px) / 2),
+            Constraint::Percentage(px),
+            Constraint::Percentage((100 - px) / 2),
         ])
         .split(popup_layout[1])[1]
 }
@@ -597,11 +624,11 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 /// Penny stocks get more decimals because every fraction of a cent matters
 /// when you're hoping for that 10,000% gain.
 pub(crate) fn format_price(price: f64) -> String {
-    if price >= 1.0 {
-        // Normal prices get normal formatting
+    if price == 0.0 {
+        "$0.00".to_string()
+    } else if price.abs() >= 1.0 {
         format!("${:.2}", price)
     } else {
-        // Penny stocks and shitcoins need more precision
         format!("${:.6}", price)
     }
 }
@@ -647,10 +674,30 @@ pub(crate) fn truncate_string(s: &str, max_len: usize) -> String {
     }
 }
 
+/// Build a visual range bar showing where a value sits between low and high.
+/// The ● marker is placed between ├ and ┤ without overwriting the endpoints.
+fn range_bar(low: f64, high: f64, current: f64, width: usize) -> String {
+    if high <= low || width < 3 {
+        return format!("{:.2} — {:.2}", low, high);
+    }
+    let pos = ((current - low) / (high - low)).clamp(0.0, 1.0);
+    let inner = width - 2;
+    let idx = if inner <= 1 {
+        1
+    } else {
+        1 + (pos * (inner - 1) as f64).round() as usize
+    };
+    let mut bar: Vec<char> = vec!['─'; width];
+    bar[0] = '├';
+    bar[width - 1] = '┤';
+    bar[idx] = '●';
+    bar.iter().collect()
+}
+
 /// Render detail popup for the selected quote.
 fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
     if let Some(quote) = app.selected_quote() {
-        let area = centered_rect(60, 60, frame.area());
+        let area = centered_rect(65, 75, frame.area());
 
         let fmt_or_na = |v: f64| -> String {
             if v == 0.0 {
@@ -660,26 +707,58 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
             }
         };
 
-        let detail_text = vec![
+        let change_color = if quote.change_percent >= 0.0 {
+            colors.gain
+        } else {
+            colors.loss
+        };
+
+        let day_range_bar = if quote.day_low > 0.0 && quote.day_high > 0.0 {
+            range_bar(quote.day_low, quote.day_high, quote.price, 20)
+        } else {
+            "N/A".to_string()
+        };
+
+        let year_range_bar = if quote.year_low > 0.0 && quote.year_high > 0.0 {
+            range_bar(quote.year_low, quote.year_high, quote.price, 20)
+        } else {
+            "N/A".to_string()
+        };
+
+        let mut detail_text = vec![
             Line::from(Span::styled(
                 format!(" {} - {} ", quote.symbol, quote.name),
                 Style::default().add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
-            Line::from(format!("  Price:          {}", format_price(quote.price))),
-            Line::from(format!(
-                "  Change:         {:+.2} ({:+.2}%)",
-                quote.change, quote.change_percent
-            )),
+            Line::from(vec![
+                Span::raw(format!("  Price:          {}", format_price(quote.price))),
+                Span::raw("  "),
+                Span::styled(
+                    format!("{:+.2} ({:+.2}%)", quote.change, quote.change_percent),
+                    Style::default().fg(change_color),
+                ),
+            ]),
             Line::from(format!(
                 "  Prev Close:     {}",
                 fmt_or_na(quote.previous_close)
             )),
             Line::from(format!("  Open:           {}", fmt_or_na(quote.open))),
-            Line::from(format!("  Day High:       {}", fmt_or_na(quote.day_high))),
-            Line::from(format!("  Day Low:        {}", fmt_or_na(quote.day_low))),
-            Line::from(format!("  52w High:       {}", fmt_or_na(quote.year_high))),
-            Line::from(format!("  52w Low:        {}", fmt_or_na(quote.year_low))),
+            Line::from(""),
+            Line::from(format!(
+                "  Day Range:      {} - {}",
+                fmt_or_na(quote.day_low),
+                fmt_or_na(quote.day_high)
+            )),
+            Line::from(format!("                  {}", day_range_bar)),
+            Line::from(""),
+            Line::from(format!(
+                "  52w Range:      {} - {}",
+                fmt_or_na(quote.year_low),
+                fmt_or_na(quote.year_high)
+            )),
+            Line::from(format!("                  {}", year_range_bar)),
+            Line::from(""),
             Line::from(format!("  Volume:         {}", format_volume(quote.volume))),
             Line::from(format!(
                 "  Avg Volume:     {}",
@@ -692,13 +771,41 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
             Line::from(format!("  Exchange:       {}", quote.exchange)),
             Line::from(format!("  Currency:       {}", quote.currency)),
             Line::from(format!("  Type:           {}", quote.quote_type)),
+            Line::from(format!("  Market:         {}", quote.market_state)),
             Line::from(format!(
                 "  Timestamp:      {}",
                 quote.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
             )),
-            Line::from(""),
-            Line::from("  Press any key to close"),
         ];
+
+        // Sparkline history if available
+        if let Some(history) = app.price_history.get(&quote.symbol) {
+            if history.len() > 1 {
+                if let Some((min, max)) = history.min_max() {
+                    detail_text.push(Line::from(""));
+                    detail_text.push(Line::from(format!(
+                        "  Price History:  {} pts ({:.2} - {:.2})",
+                        history.len(),
+                        min,
+                        max
+                    )));
+                }
+            }
+        }
+
+        // Currency conversion info
+        if app.currency_convert && quote.currency != app.display_currency {
+            let converted = app.convert_price(quote.price, &quote.currency);
+            detail_text.push(Line::from(format!(
+                "  Converted:      {}{:.2} {}",
+                app.currency_symbol(),
+                converted,
+                app.display_currency
+            )));
+        }
+
+        detail_text.push(Line::from(""));
+        detail_text.push(Line::from("  Press any key to close"));
 
         let detail = Paragraph::new(detail_text)
             .block(
@@ -740,6 +847,55 @@ fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
 
     frame.render_widget(Clear, area);
     frame.render_widget(alert_widget, area);
+}
+
+/// Render sparkline charts sidebar.
+fn render_sparklines(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
+    let filtered = app.visible_quotes();
+    let visible: Vec<_> = filtered.iter().skip(app.scroll_offset).collect();
+
+    // 1 row for header + 1 row per quote
+    let mut constraints = vec![Constraint::Length(1)];
+    for _ in &visible {
+        constraints.push(Constraint::Length(1));
+    }
+    constraints.push(Constraint::Min(0));
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(area);
+
+    // Header
+    let header = Paragraph::new(Span::styled(
+        " TREND",
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    ))
+    .style(Style::default().bg(colors.header_bg));
+    frame.render_widget(header, rows[0]);
+
+    for (i, quote) in visible.iter().enumerate() {
+        if i + 1 >= rows.len() - 1 {
+            break;
+        }
+        let row_area = rows[i + 1];
+        if let Some(history) = app.price_history.get(&quote.symbol) {
+            if history.len() > 1 {
+                let data = history.sparkline_data();
+                let color = if quote.change_percent >= 0.0 {
+                    colors.gain
+                } else {
+                    colors.loss
+                };
+                let spark = Sparkline::default()
+                    .data(data)
+                    .style(Style::default().fg(color));
+                frame.render_widget(spark, row_area);
+            }
+        }
+    }
 }
 
 /// Render batch mode output (non-interactive).
@@ -819,20 +975,23 @@ fn render_batch_json(app: &App) {
     }
 }
 
+/// RFC 4180: escape a field that may contain commas, quotes, or newlines.
+fn csv_escape(field: &str) -> String {
+    if field.contains(',') || field.contains('"') || field.contains('\n') || field.contains('\r') {
+        format!("\"{}\"", field.replace('"', "\"\""))
+    } else {
+        field.to_string()
+    }
+}
+
 /// Batch output as CSV — for spreadsheet warriors everywhere.
 fn render_batch_csv(app: &App) {
     println!("symbol,name,price,change,change_percent,volume,market_cap");
     for quote in &app.quotes {
-        // RFC 4180: quote fields that contain commas, quotes, or newlines
-        let name = if quote.name.contains(',') || quote.name.contains('"') {
-            format!("\"{}\"", quote.name.replace('"', "\"\""))
-        } else {
-            quote.name.clone()
-        };
         println!(
             "{},{},{:.2},{:+.2},{:+.2},{},{}",
-            quote.symbol,
-            name,
+            csv_escape(&quote.symbol),
+            csv_escape(&quote.name),
             quote.price,
             quote.change,
             quote.change_percent,
@@ -863,7 +1022,42 @@ mod tests {
 
     #[test]
     fn test_format_price_zero() {
-        assert_eq!(format_price(0.0), "$0.000000");
+        assert_eq!(format_price(0.0), "$0.00");
+    }
+
+    #[test]
+    fn test_format_price_negative() {
+        assert_eq!(format_price(-5.50), "$-5.50");
+        assert_eq!(format_price(-0.001234), "$-0.001234");
+    }
+
+    #[test]
+    fn test_csv_escape() {
+        assert_eq!(csv_escape("simple"), "simple");
+        assert_eq!(csv_escape("has,comma"), "\"has,comma\"");
+        assert_eq!(csv_escape("has\"quote"), "\"has\"\"quote\"");
+        assert_eq!(csv_escape("has\nnewline"), "\"has\nnewline\"");
+        assert_eq!(csv_escape("has\rcarriage"), "\"has\rcarriage\"");
+    }
+
+    // --- parse_hex tests ---
+
+    #[test]
+    fn test_parse_hex_valid() {
+        assert_eq!(UiColors::parse_hex("#00ff00"), Some(Color::Rgb(0, 255, 0)));
+        assert_eq!(UiColors::parse_hex("#ff0000"), Some(Color::Rgb(255, 0, 0)));
+        assert_eq!(
+            UiColors::parse_hex("1e90ff"),
+            Some(Color::Rgb(30, 144, 255))
+        );
+    }
+
+    #[test]
+    fn test_parse_hex_invalid() {
+        assert_eq!(UiColors::parse_hex(""), None);
+        assert_eq!(UiColors::parse_hex("#fff"), None);
+        assert_eq!(UiColors::parse_hex("banana"), None);
+        assert_eq!(UiColors::parse_hex("#gggggg"), None);
     }
 
     // --- format_volume tests ---
@@ -947,5 +1141,72 @@ mod tests {
         let result = truncate_string(s, 6);
         assert!(result.len() <= 9); // byte len, not char len
         assert!(result.ends_with("..."));
+    }
+
+    // --- range_bar tests ---
+
+    #[test]
+    fn test_range_bar_at_low() {
+        let bar = range_bar(100.0, 200.0, 100.0, 10);
+        assert!(bar.starts_with("├●"));
+        assert!(bar.ends_with('┤'));
+    }
+
+    #[test]
+    fn test_range_bar_at_high() {
+        let bar = range_bar(100.0, 200.0, 200.0, 10);
+        assert!(bar.ends_with("●┤"));
+        assert!(bar.starts_with('├'));
+    }
+
+    #[test]
+    fn test_range_bar_at_mid() {
+        let bar = range_bar(0.0, 100.0, 50.0, 11);
+        assert!(bar.contains('●'));
+        assert!(bar.starts_with('├'));
+        assert!(bar.ends_with('┤'));
+    }
+
+    #[test]
+    fn test_range_bar_zero_range() {
+        let bar = range_bar(100.0, 100.0, 100.0, 10);
+        assert!(bar.contains("100.00"));
+    }
+
+    #[test]
+    fn test_range_bar_tiny_width() {
+        let bar = range_bar(0.0, 100.0, 50.0, 2);
+        assert!(bar.contains("0.00"));
+    }
+
+    #[test]
+    fn test_range_bar_clamped() {
+        let bar = range_bar(100.0, 200.0, 250.0, 10);
+        assert!(bar.ends_with("●┤"));
+        assert!(bar.starts_with('├'));
+        let bar2 = range_bar(100.0, 200.0, 50.0, 10);
+        assert!(bar2.starts_with("├●"));
+        assert!(bar2.ends_with('┤'));
+    }
+
+    #[test]
+    fn test_range_bar_width_3() {
+        let bar = range_bar(0.0, 100.0, 50.0, 3);
+        assert_eq!(bar, "├●┤");
+    }
+
+    #[test]
+    fn test_range_bar_endpoints_preserved() {
+        let bar_low = range_bar(0.0, 100.0, 0.0, 10);
+        let chars: Vec<char> = bar_low.chars().collect();
+        assert_eq!(chars[0], '├');
+        assert_eq!(chars[9], '┤');
+        assert_eq!(chars[1], '●');
+
+        let bar_high = range_bar(0.0, 100.0, 100.0, 10);
+        let chars: Vec<char> = bar_high.chars().collect();
+        assert_eq!(chars[0], '├');
+        assert_eq!(chars[9], '┤');
+        assert_eq!(chars[8], '●');
     }
 }

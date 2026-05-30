@@ -3,8 +3,20 @@ name: CI
 on:
   push:
     branches: [main, master]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+      - ".github/dependabot.yml"
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+      - ".github/dependabot.yml"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,27 +26,31 @@ permissions:
   contents: read
 
 jobs:
-  # Run all tests
   test:
     name: Test (${{ matrix.os }}, ${{ matrix.rust }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta]
-
+        include:
+          - os: ubuntu-latest
+            rust: stable
+          - os: ubuntu-latest
+            rust: beta
+          - os: macos-latest
+            rust: stable
+          - os: windows-latest
+            rust: stable
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
         with:
           toolchain: ${{ matrix.rust }}
-          components: rustfmt, clippy
 
-      - name: Cache cargo registry
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v4
+      - name: Cache cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
         with:
           path: |
             ~/.cargo/registry
@@ -44,23 +60,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.rust }}-cargo-
 
-      - name: Build
-        run: cargo build --verbose
-
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --all-targets --verbose
 
-  # Check code quality
   quality:
-    name: Code Quality
-    runs-on: [self-hosted, linux, x64]
+    name: Quality (fmt, clippy, docs)
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
         with:
           components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-quality-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-quality-cargo-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -73,92 +96,61 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
-  # Verify MSRV (Minimum Supported Rust Version)
   msrv:
-    name: Check MSRV (1.88)
-    runs-on: [self-hosted, linux, x64]
-    continue-on-error: true
+    name: MSRV (1.88)
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Install Rust 1.88
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
         with:
           toolchain: "1.88"
 
+      - name: Cache cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-msrv-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-msrv-cargo-
+
       - name: Check compilation
-        run: cargo check --verbose
+        run: cargo check --all-targets
 
-      - name: Run tests
-        run: cargo test --verbose
-
-  # Verify crate can be published
-  publish-dry-run:
-    name: Publish Dry Run
-    runs-on: [self-hosted, linux, x64]
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
-
-      - name: Check package
-        run: cargo package --list
-
-      - name: Verify publishable
-        run: cargo publish --dry-run --allow-dirty
-
-  # Security audit
   security:
     name: Security Audit
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+
+      - name: Cache cargo-audit
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}
 
       - name: Install cargo-audit
-        run: cargo install --locked cargo-audit
+        run: command -v cargo-audit || cargo install --locked cargo-audit
 
       - name: Run security audit
         run: cargo audit
 
-  # Build release binaries for verification
-  build-release:
-    name: Build Release (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-
+  publish-dry-run:
+    name: Publish Dry Run
+    runs-on: ubuntu-latest
+    needs: [test, quality]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
-        with:
-          targets: ${{ matrix.target }}
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
 
-      - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Test binary runs
-        if: matrix.target != 'aarch64-apple-darwin'  # Can't run ARM on Intel
-        run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            ./target/${{ matrix.target }}/release/stonktop.exe --version
-          else
-            ./target/${{ matrix.target }}/release/stonktop --version
-          fi
-        shell: bash
+      - name: Verify publishable
+        run: cargo publish --dry-run --allow-dirty
