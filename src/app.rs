@@ -876,12 +876,10 @@ impl App {
             }
 
             // Groups
-            KeyCode::Tab => {
-                if self.groups.len() > 1 {
-                    self.active_group = (self.active_group + 1) % self.groups.len();
-                    self.selected = 0;
-                    self.scroll_offset = 0;
-                }
+            KeyCode::Tab if self.groups.len() > 1 => {
+                self.active_group = (self.active_group + 1) % self.groups.len();
+                self.selected = 0;
+                self.scroll_offset = 0;
             }
 
             _ => {}
