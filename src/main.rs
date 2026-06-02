@@ -166,25 +166,21 @@ async fn run_app(
                 Event::Key(key) => {
                     app.handle_key_event(key.code, key.modifiers);
                 }
-                Event::Mouse(mouse) => {
-                    if !app.secure_mode {
-                        match mouse.kind {
-                            MouseEventKind::ScrollUp => app.select_up(),
-                            MouseEventKind::ScrollDown => app.select_down(),
-                            MouseEventKind::Down(_) => {
-                                let row = mouse.row as usize;
-                                if row >= TABLE_DATA_START_ROW {
-                                    let idx = row - TABLE_DATA_START_ROW + app.scroll_offset;
-                                    let visible_len = app.visible_quotes().len();
-                                    if idx < visible_len {
-                                        app.selected = idx;
-                                    }
-                                }
+                Event::Mouse(mouse) if !app.secure_mode => match mouse.kind {
+                    MouseEventKind::ScrollUp => app.select_up(),
+                    MouseEventKind::ScrollDown => app.select_down(),
+                    MouseEventKind::Down(_) => {
+                        let row = mouse.row as usize;
+                        if row >= TABLE_DATA_START_ROW {
+                            let idx = row - TABLE_DATA_START_ROW + app.scroll_offset;
+                            let visible_len = app.visible_quotes().len();
+                            if idx < visible_len {
+                                app.selected = idx;
                             }
-                            _ => {}
                         }
                     }
-                }
+                    _ => {}
+                },
                 _ => {}
             }
         }
