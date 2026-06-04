@@ -16,6 +16,19 @@ cargo clippy -- -D warnings
 cargo fmt --check  # Required by CI
 ```
 
+### Docker integration & live E2E tests
+Some integration and "live" E2E tests exercise the packaged app inside Docker (reproducible containerized runtime, tests the release artifact as users would run it).
+
+- Requires Docker daemon.
+- Build image: `docker build -t stonktop:test .`
+- Run the ignored Docker tests: `cargo test --test integration_test test_docker_live_e2e -- --ignored`
+- CI runs a dedicated `docker` job on every push/PR that builds the image and executes the live E2E verification.
+
+See `tests/integration_test.rs` (test_docker_live_e2e) and `.github/workflows/ci.yml` (docker job) + the repo `Dockerfile`.
+
+These complement the fast wiremock E2E (tests/e2e_test.rs) and pure CLI integration tests.
+
+
 ## Usage
 ```bash
 stonktop -s AAPL,GOOGL,BTC-USD

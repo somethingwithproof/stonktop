@@ -1,0 +1,15 @@
+# Ignore build artifacts, git, etc. for smaller/faster Docker context
+target/
+.git/
+.gitignore
+*.md
+LICENSE
+Dockerfile
+.dockerignore
+tests/
+.github/
+scripts/
+# Keep source + lock for deterministic cargo build in container
+!Cargo.toml
+!Cargo.lock
+!src/
