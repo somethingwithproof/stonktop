@@ -244,13 +244,22 @@ impl Default for CurrencyConfig {
 }
 
 impl Config {
-    /// Load configuration from file.
+    /// Load configuration from file, with basic validation.
     pub fn load(path: &PathBuf) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
         let config: Config = toml::from_str(&content)
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
+
+        // Basic validation (review improvement)
+        if config.general.refresh_interval <= 0.0 {
+            anyhow::bail!("refresh_interval must be positive (got {})", config.general.refresh_interval);
+        }
+        if config.general.timeout == 0 {
+            anyhow::bail!("timeout must be positive");
+        }
+        // Add more as needed (e.g. valid currency codes)
 
         Ok(config)
     }
