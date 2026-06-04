@@ -46,9 +46,10 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Update version in Cargo.toml
+# Update version in Cargo.toml (portable cp+sed+mv to avoid -i portability issues on GNU vs BSD sed)
 echo "==> Updating version in Cargo.toml to $VERSION"
-sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+cp Cargo.toml Cargo.toml.bak
+sed -e "s/^version = \\".*\\"/version = \"$VERSION\"/" Cargo.toml.bak > Cargo.toml
 rm -f Cargo.toml.bak
 
 # Update Cargo.lock
