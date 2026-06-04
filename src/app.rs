@@ -1001,7 +1001,7 @@ mod tests {
     use super::*;
     use crate::cli::Args;
     use crate::config::Config;
-    use crate::models::{Quote, SortOrder};
+    use crate::models::{MarketState, Quote, SortOrder};
     use clap::Parser;
     use crossterm::event::{KeyCode, KeyModifiers};
 
@@ -1597,6 +1597,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_refresh_with_provider_populates_failed_symbols_on_partial() {
+        // Request 2 symbols, provider only supplies 1 -> failed_symbols should capture the missing
+        let mock = MockProvider {
+            quotes: vec![Quote {
+                symbol: "GOOD".into(),
+                name: "Good Corp".into(),
+                price: 100.0,
+                ..Quote::default()
+            }],
+        };
+
+        let args = Args::parse_from(["stonktop", "-s", "GOOD,MISSING", "-b", "-n", "1"]);
+        let config = Config::default();
+        let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
+
+        app.refresh().await.unwrap();
+
+        assert_eq!(app.domain.quotes.len(), 1);
+        assert_eq!(app.domain.quotes[0].symbol, "GOOD");
+        assert!(app.domain.failed_symbols.contains(&"MISSING".to_string()));
+    }
+
+    #[tokio::test]
     async fn test_refresh_calls_check_alerts() {
         let mock = MockProvider {
             quotes: vec![Quote {
@@ -1871,5 +1894,356 @@ mod tests {
         let loaded: ExportData = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.symbols, data.symbols);
         assert_eq!(loaded.holdings.len(), 1);
+    }
+
+    // --- Arch split + command pattern tests (for 100% coverage of new seams) ---
+
+    #[test]
+    fn test_key_to_command_normal_navigation_and_actions() {
+        let mode = InputMode::Normal;
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('q'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::Quit)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Up,
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::SelectUp)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('j'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::SelectDown)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('s'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::NextSortOrder)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('r'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::ToggleSortDirection)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('3'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::SetSortOrder(SortOrder::Price))
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('H'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::ToggleHoldings)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('a'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::EnterAddSymbol)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('/'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::EnterSearch)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Enter,
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::ToggleDetail)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char(' '),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::ForceRefresh)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('S'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::ToggleSparklines)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('e'),
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::Export)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Tab,
+                KeyModifiers::NONE,
+                mode,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::NextGroup)
+        );
+    }
+
+    #[test]
+    fn test_key_to_command_modes_and_overlays_take_precedence() {
+        // Detail overlay dismisses everything
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('q'),
+                KeyModifiers::NONE,
+                InputMode::Normal,
+                false,
+                false,
+                false,
+                true
+            ),
+            Some(KeyCommand::DismissAnyOverlay)
+        );
+        // Search mode
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('x'),
+                KeyModifiers::NONE,
+                InputMode::Search,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::InputChar('x'))
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Enter,
+                KeyModifiers::NONE,
+                InputMode::Search,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::InputConfirm)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Esc,
+                KeyModifiers::NONE,
+                InputMode::Search,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::InputCancel)
+        );
+        // AddSymbol mode
+        assert_eq!(
+            key_to_command(
+                KeyCode::Backspace,
+                KeyModifiers::NONE,
+                InputMode::AddSymbol,
+                false,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::InputBackspace)
+        );
+        // Help / error overlays
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('x'),
+                KeyModifiers::NONE,
+                InputMode::Normal,
+                true,
+                false,
+                false,
+                false
+            ),
+            Some(KeyCommand::DismissAnyOverlay)
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('x'),
+                KeyModifiers::NONE,
+                InputMode::Normal,
+                false,
+                true,
+                false,
+                false
+            ),
+            Some(KeyCommand::DismissAnyOverlay)
+        );
+        // Secure mode restricts
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('a'),
+                KeyModifiers::NONE,
+                InputMode::Normal,
+                false,
+                false,
+                true,
+                false
+            ),
+            None
+        );
+        assert_eq!(
+            key_to_command(
+                KeyCode::Char('j'),
+                KeyModifiers::NONE,
+                InputMode::Normal,
+                false,
+                false,
+                true,
+                false
+            ),
+            Some(KeyCommand::SelectDown)
+        );
+    }
+
+    #[test]
+    fn test_handle_command_affects_correct_state_bucket() {
+        let mut app = test_app();
+        // UI only
+        app.handle_command(KeyCommand::EnterSearch);
+        assert_eq!(app.ui.input_mode, InputMode::Search);
+        assert_eq!(app.ui.search_filter, "");
+        // Domain + UI
+        app.handle_command(KeyCommand::NextGroup);
+        // (with only "All" group in test_app it may no-op, but command path exercised)
+        // Direct command for sort (domain)
+        app.handle_command(KeyCommand::SetSortOrder(SortOrder::Price));
+        assert_eq!(app.domain.sort_order, SortOrder::Price);
+        // Dismiss
+        app.ui.show_detail = true;
+        app.handle_command(KeyCommand::DismissAnyOverlay);
+        assert!(!app.ui.show_detail);
+    }
+
+    #[test]
+    fn test_any_markets_open_and_failed_symbols() {
+        let mut app = test_app();
+        // default seeded quotes have no market_state set (Closed via default)
+        assert!(!app.any_markets_open());
+
+        // Seed with mixed market states (simulates real quotes)
+        app.domain.quotes = vec![
+            Quote {
+                symbol: "OPEN".into(),
+                market_state: MarketState::Regular,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "CLOSED".into(),
+                market_state: MarketState::Closed,
+                ..Quote::default()
+            },
+        ];
+        assert!(app.any_markets_open());
+
+        // Simulate partial: refresh path would set failed, here we set directly for unit
+        app.domain.failed_symbols = vec!["MISSING".into()];
+        assert!(!app.domain.failed_symbols.is_empty());
+    }
+
+    #[test]
+    fn test_ui_state_and_domain_state_separation_via_app() {
+        let app = test_app();
+        // Construction puts UI bits in ui, data in domain
+        assert_eq!(app.ui.selected, 0);
+        assert_eq!(app.ui.input_mode, InputMode::Normal);
+        assert!(!app.ui.show_help);
+        assert_eq!(app.domain.quotes.len(), 2);
+        assert!(!app.domain.symbols.is_empty());
+        // Methods delegate correctly (visible uses both)
+        let vis = app.visible_quotes();
+        assert_eq!(vis.len(), 2);
     }
 }

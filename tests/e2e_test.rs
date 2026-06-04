@@ -357,6 +357,12 @@ async fn test_partial_failure() {
         "expected only the successful quote"
     );
     assert_eq!(app.domain.quotes[0].symbol, "AAPL");
+
+    // Verify new failed_symbols tracking (arch rec coverage at e2e level)
+    assert!(
+        app.domain.failed_symbols.contains(&"INVALID".to_string()),
+        "expected INVALID to be recorded in failed_symbols on partial"
+    );
 }
 
 // --- data processing tests ---
