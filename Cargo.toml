@@ -67,9 +67,15 @@ name = "stonktop"
 path = "src/lib.rs"
 
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/stonktop-{ target }.tar.gz"
-bin-dir = "stonktop-{ target }/{ bin }{ binary-ext }"
+# Matches the exact artifact names produced by .github/workflows/release.yml on every tagged release.
+# Assets: stonktop-v{version}-{target}.tar.gz (unix) or .zip (windows) + .sha256
+# The inner tar/zip contains a dir "stonktop-v{version}-{target}/" with the binary + docs.
+pkg-url = "{ repo }/releases/download/v{ version }/stonktop-v{ version }-{ target }.{ archive-format }"
+bin-dir = "stonktop-v{ version }-{ target }/{ bin }{ binary-ext }"
 pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
 
 [lints.rust]
 unsafe_code = "forbid"
