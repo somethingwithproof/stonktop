@@ -51,7 +51,7 @@ impl YahooFinanceClient {
         Ok(Self { client, base_url })
     }
 
-    /// Fetch a single quote from the v8 chart API.
+    /// Fetch a single quote from the v8 chart API, with basic retry for transient errors.
     async fn fetch_single_quote(&self, symbol: &str) -> Result<Quote> {
         // Validate symbol before constructing URL to prevent injection
         if !is_valid_symbol(symbol) {
@@ -61,38 +61,52 @@ impl YahooFinanceClient {
         // Symbol goes in the path, not as a query parameter
         let url = format!("{}/{}?interval=1d&range=1d", self.base_url, symbol);
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .with_context(|| format!("Failed to fetch quote for {}", symbol))?;
+        let mut last_err: Option<anyhow::Error> = None;
+        for attempt in 0..3 {
+            match self.client.get(&url).send().await {
+                Ok(response) => {
+                    if !response.status().is_success() {
+                        last_err = Some(anyhow::anyhow!("Yahoo Finance API returned error for {}: {}", symbol, response.status()));
+                        if attempt < 2 {
+                            tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
+                            continue;
+                        }
+                        return Err(last_err.unwrap().context(format!("Failed to fetch quote for {}", symbol)));
+                    }
 
-        if !response.status().is_success() {
-            anyhow::bail!(
-                "Yahoo Finance API returned error for {}: {}",
-                symbol,
-                response.status()
-            );
+                    let data: ChartResponse = response
+                        .json()
+                        .await
+                        .with_context(|| format!("Failed to parse response for {}", symbol))?;
+
+                    // Check for API errors
+                    if let Some(error) = data.chart.error {
+                        last_err = Some(anyhow::anyhow!("Yahoo Finance error for {}: {}", symbol, error.description));
+                        if attempt < 2 {
+                            tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
+                            continue;
+                        }
+                        return Err(last_err.unwrap());
+                    }
+
+                    let result = data
+                        .chart
+                        .result
+                        .and_then(|r| r.into_iter().next())
+                        .ok_or_else(|| anyhow::anyhow!("No data returned for {}", symbol))?;
+
+                    return Ok(result.into_quote());
+                }
+                Err(e) => {
+                    last_err = Some(e.into());n                    if attempt < 2 {
+                        tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
+                        continue;
+                    }
+                }
+            }
         }
 
-        let data: ChartResponse = response
-            .json()
-            .await
-            .with_context(|| format!("Failed to parse response for {}", symbol))?;
-
-        // Check for API errors
-        if let Some(error) = data.chart.error {
-            anyhow::bail!("Yahoo Finance error for {}: {}", symbol, error.description);
-        }
-
-        let result = data
-            .chart
-            .result
-            .and_then(|r| r.into_iter().next())
-            .ok_or_else(|| anyhow::anyhow!("No data returned for {}", symbol))?;
-
-        Ok(result.into_quote())
+        Err(last_err.unwrap_or_else(|| anyhow::anyhow!("Failed to fetch quote for {}", symbol)).context(format!("Failed to fetch quote for {}", symbol)))
     }
 
     /// Fetch a single quote.
