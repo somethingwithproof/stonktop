@@ -8,6 +8,11 @@ use std::collections::VecDeque;
 
 /// Represents a financial quote for a stock or cryptocurrency.
 /// Contains all the numbers you need to feel emotions.
+///
+/// NOTE: Numeric fields (price, change, volumes, market_cap) use f64 to match the
+/// Yahoo Finance API responses directly. This is sufficient and conventional for
+/// real-time display/monitoring UIs. For high-precision accounting or tax lots,
+/// a decimal type (e.g. rust_decimal) could be introduced in a future revision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quote {
     /// Ticker symbol (e.g., "AAPL", "BTC-USD")
@@ -72,7 +77,7 @@ impl Default for Quote {
             quote_type: QuoteType::Equity,
             market_state: MarketState::Closed,
             timestamp: Utc::now(),
-        }
+        };
     }
 }
 
