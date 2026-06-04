@@ -17,17 +17,21 @@ env:
   RUST_BACKTRACE: 1
   BINARY_NAME: stonktop
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Pre-release Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV 1.88 + clippy/fmt
         with:
           components: rustfmt, clippy
 
@@ -57,13 +61,14 @@ jobs:
   security:
     name: Pre-release Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV/tooling
 
       - name: Cache cargo-audit
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4
@@ -80,13 +85,14 @@ jobs:
   validate-version:
     name: Validate Version
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       is_prerelease: ${{ steps.get_version.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Get version from tag
         id: get_version
@@ -125,12 +131,16 @@ jobs:
     name: Create Release
     needs: [test, security, validate-version]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: write
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Generate release notes
         run: |
@@ -157,6 +167,10 @@ jobs:
     name: Build ${{ matrix.target }}
     needs: [create-release, validate-version]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    concurrency:
+      group: release-build-${{ github.ref }}-${{ matrix.target }}
+      cancel-in-progress: false
     permissions:
       contents: write
     strategy:
@@ -188,10 +202,10 @@ jobs:
             archive: zip
             cross: false
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV 1.88 + target
         with:
           targets: ${{ matrix.target }}
 
@@ -270,14 +284,15 @@ jobs:
     name: Publish to crates.io
     needs: [validate-version, build-release]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     if: needs.validate-version.outputs.is_prerelease == 'false'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV/tooling
 
       - name: Publish to crates.io
         run: cargo publish
@@ -288,6 +303,7 @@ jobs:
     name: Verify Release
     needs: [validate-version, publish-crates]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     if: always() && needs.publish-crates.result == 'success'

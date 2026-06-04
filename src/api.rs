@@ -113,7 +113,9 @@ impl QuoteProvider for YahooFinanceClient {
         let mut quotes = Vec::new();
         let mut last_err = None;
 
-        // Fetch with bounded concurrency using join_all batches
+        // Fetch with bounded concurrency using join_all batches.
+        // Partial success is tolerated: we return whatever quotes we could fetch so the
+        // UI remains useful. Errors are only fatal if *no* quotes could be retrieved.
         for chunk in symbols.chunks(10) {
             let futures: Vec<_> = chunk.iter().map(|s| self.fetch_single_quote(s)).collect();
             let results = join_all(futures).await;
@@ -129,6 +131,11 @@ impl QuoteProvider for YahooFinanceClient {
             if let Some(e) = last_err {
                 return Err(e);
             }
+        } else if last_err.is_some() {
+            // Partial failure(s) occurred (e.g. transient network, rate limit on Yahoo,
+            // or symbol expansion producing a temporarily bad ticker). We still return
+            // the successful subset; App::refresh will display what it can and clear
+            // the error banner only on complete failure.
         }
 
         Ok(quotes)
@@ -238,7 +245,7 @@ impl ChartResult {
                 .regular_market_time
                 .and_then(|t| Utc.timestamp_opt(t, 0).single())
                 .unwrap_or_else(Utc::now),
-        }
+        };
     }
 }
 
@@ -482,7 +489,7 @@ mod tests {
     #[test]
     fn test_parse_market_state_unknown() {
         assert_eq!(parse_market_state(Some("HALTED")), MarketState::Closed);
-        assert_eq!(parse_market_state(Some("")), MarketState::Closed);
+        assert_eq!(parse_market_state(Some(""))), MarketState::Closed);
     }
 
     // --- parse_quote_type tests ---
