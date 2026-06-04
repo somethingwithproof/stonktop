@@ -160,27 +160,7 @@ impl Args {
         Args::parse()
     }
 
-    /// Check if colors should be enabled.
-    /// Because red and green are the only colors that matter in finance.
-    #[allow(dead_code)] // Reserved for when we implement --no-feelings mode
-    pub fn use_colors(&self) -> bool {
-        match self.color {
-            ColorMode::Always => true,
-            ColorMode::Never => false,
-            ColorMode::Auto => {
-                // Check if stdout is a terminal
-                atty_check()
-            }
-        }
-    }
-}
-
-/// Check if stdout is a terminal.
-/// Spoiler: it probably is, unless you're piping your tears to /dev/null.
-#[allow(dead_code)] // Used by use_colors which is reserved for future features
-fn atty_check() -> bool {
-    use std::io::IsTerminal;
-    std::io::stdout().is_terminal()
+    // use_colors and atty_check removed as the ColorMode feature is fully wired via App.color_mode and UiColors::for_app (see review improvements)
 }
 
 #[cfg(test)]
