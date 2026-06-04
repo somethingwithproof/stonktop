@@ -34,5 +34,6 @@ stonktop -b                   # Batch mode
 - Price values: use `Price` alias (f64) for quote/display values; see models.rs for rationale vs decimal
 - Partial API errors: best-effort, tracked for UX
 - Dead code cleaned for color mode (feature implemented via ColorMode + UiColors)
-- App state: large; consider further splits for new features
-- See review /tmp/grok-review-stonktop.md and PR #71 for full list of implemented improvements
+- App state: split implemented (UiState + DomainState composition; App thin coordinator). See arch review /tmp/grok-arch-review-stonktop.md recs #1-7 (all implemented on this branch/PR#71) + /tmp/grok-review-stonktop.md. KeyCommand for input, CachingQuoteProvider, market/failed tracking, lints hardened.
+- Architecture decisions (2026): QuoteProvider remains sacred extension point (no direct Yahoo in App/UI). State split keeps ratatui immediate renders reading &App (delegates inside). Caching at boundary (TTL, best-effort). f64/Price pragmatic for display. anyhow for app errors. No new deps for cache (std only). Single crate kept (no workspace yet).
+- See review /tmp/grok-review-stonktop.md and PR #71 for full list of implemented improvements (review fixes + "all" + "all arch recs")

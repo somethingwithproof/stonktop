@@ -254,7 +254,10 @@ impl Config {
 
         // Basic validation (review improvement)
         if config.general.refresh_interval <= 0.0 {
-            anyhow::bail!("refresh_interval must be positive (got {})", config.general.refresh_interval);
+            anyhow::bail!(
+                "refresh_interval must be positive (got {})",
+                config.general.refresh_interval
+            );
         }
         if config.general.timeout == 0 {
             anyhow::bail!("timeout must be positive");

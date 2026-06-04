@@ -78,8 +78,8 @@ async fn test_single_symbol_pipeline() {
 
     app.refresh().await.unwrap();
 
-    assert_eq!(app.quotes.len(), 1, "expected exactly one quote");
-    let q = &app.quotes[0];
+    assert_eq!(app.domain.quotes.len(), 1, "expected exactly one quote");
+    let q = &app.domain.quotes[0];
     assert_eq!(q.symbol, "AAPL");
     assert!(
         (q.price - 195.89).abs() < 0.01,
@@ -117,13 +117,23 @@ async fn test_multi_symbol_pipeline() {
 
     app.refresh().await.unwrap();
 
-    assert_eq!(app.quotes.len(), 2, "expected two quotes");
+    assert_eq!(app.domain.quotes.len(), 2, "expected two quotes");
 
-    let mut symbols: Vec<&str> = app.quotes.iter().map(|q| q.symbol.as_str()).collect();
+    let mut symbols: Vec<&str> = app
+        .domain
+        .quotes
+        .iter()
+        .map(|q| q.symbol.as_str())
+        .collect();
     symbols.sort_unstable();
     assert_eq!(symbols, ["AAPL", "BTC-USD"]);
 
-    let btc = app.quotes.iter().find(|q| q.symbol == "BTC-USD").unwrap();
+    let btc = app
+        .domain
+        .quotes
+        .iter()
+        .find(|q| q.symbol == "BTC-USD")
+        .unwrap();
     assert!((btc.price - 43250.75).abs() < 0.01);
     assert_eq!(btc.quote_type, QuoteType::Cryptocurrency);
 }
@@ -143,13 +153,13 @@ async fn test_crypto_expansion_e2e() {
     let config = Config::default();
     let mut app = App::with_base_url(&args, &config, server.uri()).unwrap();
 
-    // Symbol should be expanded in app.symbols before any request
-    assert_eq!(app.symbols, vec!["BTC-USD"]);
+    // Symbol should be expanded in app.domain.symbols before any request
+    assert_eq!(app.domain.symbols, vec!["BTC-USD"]);
 
     app.refresh().await.unwrap();
 
-    assert_eq!(app.quotes.len(), 1);
-    assert_eq!(app.quotes[0].symbol, "BTC-USD");
+    assert_eq!(app.domain.quotes.len(), 1);
+    assert_eq!(app.domain.quotes[0].symbol, "BTC-USD");
 }
 
 #[tokio::test]
@@ -242,7 +252,7 @@ async fn test_api_404() {
     app.refresh().await.unwrap();
 
     // get_quotes silently skips failures; no panic, no quote
-    assert_eq!(app.quotes.len(), 0, "expected no quotes on 404");
+    assert_eq!(app.domain.quotes.len(), 0, "expected no quotes on 404");
 }
 
 #[tokio::test]
@@ -268,7 +278,7 @@ async fn test_api_timeout() {
     // but individual timeout is swallowed by the filter_map in get_quotes.
     // Either way: no panic, no quote.
     app.refresh().await.unwrap();
-    assert_eq!(app.quotes.len(), 0, "expected no quotes on timeout");
+    assert_eq!(app.domain.quotes.len(), 0, "expected no quotes on timeout");
 }
 
 #[tokio::test]
@@ -287,7 +297,11 @@ async fn test_malformed_json() {
 
     app.refresh().await.unwrap();
 
-    assert_eq!(app.quotes.len(), 0, "expected no quotes on malformed JSON");
+    assert_eq!(
+        app.domain.quotes.len(),
+        0,
+        "expected no quotes on malformed JSON"
+    );
 }
 
 #[tokio::test]
@@ -307,7 +321,11 @@ async fn test_yahoo_error_response() {
     app.refresh().await.unwrap();
 
     // API-level error in the JSON body; get_quotes drops it
-    assert_eq!(app.quotes.len(), 0, "expected no quotes for error response");
+    assert_eq!(
+        app.domain.quotes.len(),
+        0,
+        "expected no quotes for error response"
+    );
 }
 
 #[tokio::test]
@@ -333,8 +351,12 @@ async fn test_partial_failure() {
 
     app.refresh().await.unwrap();
 
-    assert_eq!(app.quotes.len(), 1, "expected only the successful quote");
-    assert_eq!(app.quotes[0].symbol, "AAPL");
+    assert_eq!(
+        app.domain.quotes.len(),
+        1,
+        "expected only the successful quote"
+    );
+    assert_eq!(app.domain.quotes[0].symbol, "AAPL");
 }
 
 // --- data processing tests ---
@@ -372,22 +394,22 @@ fn test_sort_by_price() {
         timestamp: Utc::now(),
     };
 
-    app.quotes.push(make_quote("MID", 150.0));
-    app.quotes.push(make_quote("LOW", 50.0));
-    app.quotes.push(make_quote("HIGH", 500.0));
+    app.domain.quotes.push(make_quote("MID", 150.0));
+    app.domain.quotes.push(make_quote("LOW", 50.0));
+    app.domain.quotes.push(make_quote("HIGH", 500.0));
 
     // Default sort_direction for non-reverse args is Descending
-    app.sort_direction = SortDirection::Descending;
-    app.sort_order = SortOrder::Price;
+    app.domain.sort_direction = SortDirection::Descending;
+    app.domain.sort_order = SortOrder::Price;
     app.sort_quotes();
 
-    let prices: Vec<f64> = app.quotes.iter().map(|q| q.price).collect();
+    let prices: Vec<f64> = app.domain.quotes.iter().map(|q| q.price).collect();
     assert_eq!(prices, vec![500.0, 150.0, 50.0], "prices not descending");
 
-    app.sort_direction = SortDirection::Ascending;
+    app.domain.sort_direction = SortDirection::Ascending;
     app.sort_quotes();
 
-    let prices: Vec<f64> = app.quotes.iter().map(|q| q.price).collect();
+    let prices: Vec<f64> = app.domain.quotes.iter().map(|q| q.price).collect();
     assert_eq!(prices, vec![50.0, 150.0, 500.0], "prices not ascending");
 }
 
@@ -421,8 +443,8 @@ cost_basis = 100.0
     let args = Args::parse_from(["stonktop", "-b", "-n", "1"]);
     let app = App::with_base_url(&args, &config, "http://127.0.0.1:1".to_string()).unwrap();
 
-    assert_eq!(app.symbols, vec!["AAPL"]);
-    assert!(app.holdings.contains_key("AAPL"));
+    assert_eq!(app.domain.symbols, vec!["AAPL"]);
+    assert!(app.domain.holdings.contains_key("AAPL"));
 }
 
 // --- real network smoke test ---
@@ -470,8 +492,13 @@ async fn test_mock_provider_injection() {
 
     app.refresh().await.unwrap();
 
-    assert_eq!(app.quotes.len(), 2);
-    let syms: Vec<&str> = app.quotes.iter().map(|q| q.symbol.as_str()).collect();
+    assert_eq!(app.domain.quotes.len(), 2);
+    let syms: Vec<&str> = app
+        .domain
+        .quotes
+        .iter()
+        .map(|q| q.symbol.as_str())
+        .collect();
     assert!(syms.contains(&"FAKE"));
     assert!(syms.contains(&"TEST"));
 }
@@ -505,12 +532,12 @@ async fn test_alerts_from_config() {
 
     app.refresh().await.unwrap();
 
-    assert_eq!(app.quotes.len(), 1);
+    assert_eq!(app.domain.quotes.len(), 1);
     assert!(
-        !app.triggered_alerts.is_empty(),
+        !app.domain.triggered_alerts.is_empty(),
         "alert should have triggered"
     );
-    assert!(app.triggered_alerts[0].1.contains("above"));
+    assert!(app.domain.triggered_alerts[0].1.contains("above"));
 }
 
 #[tokio::test]
@@ -541,9 +568,9 @@ async fn test_custom_shortcuts_from_config() {
 
     // Symbol should be expanded via custom shortcut
     assert!(
-        app.symbols.contains(&"PEPE-USD".to_string()),
+        app.domain.symbols.contains(&"PEPE-USD".to_string()),
         "expected PEPE to expand to PEPE-USD, got {:?}",
-        app.symbols
+        app.domain.symbols
     );
 }
 
@@ -577,16 +604,16 @@ async fn test_search_filter_with_mock_provider() {
     let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
 
     app.refresh().await.unwrap();
-    assert_eq!(app.quotes.len(), 3);
+    assert_eq!(app.domain.quotes.len(), 3);
 
     // Apply search filter for "A" — matches AAPL, AMZN, and Alphabet
-    app.search_filter = "a".to_string();
+    app.ui.search_filter = "a".to_string();
     let visible = app.visible_quotes();
     // AAPL (symbol), AMZN (symbol), Alphabet (name) — all contain "A"
     assert_eq!(visible.len(), 3);
 
     // Filter more specifically for "amz"
-    app.search_filter = "amz".to_string();
+    app.ui.search_filter = "amz".to_string();
     let visible = app.visible_quotes();
     assert_eq!(visible.len(), 1);
     assert_eq!(visible[0].symbol, "AMZN");
@@ -642,15 +669,15 @@ async fn test_groups_filter_visible_quotes() {
     let mut app = App::with_provider(&args, &config, Box::new(mock)).unwrap();
 
     app.refresh().await.unwrap();
-    assert_eq!(app.quotes.len(), 3);
+    assert_eq!(app.domain.quotes.len(), 3);
 
     // All group
-    assert_eq!(app.active_group, 0);
+    assert_eq!(app.domain.active_group, 0);
     assert_eq!(app.visible_quotes().len(), 3);
 
     // Switch to a named group — find which index has "tech"
-    let tech_idx = app.groups.iter().position(|g| g == "tech").unwrap();
-    app.active_group = tech_idx;
+    let tech_idx = app.domain.groups.iter().position(|g| g == "tech").unwrap();
+    app.domain.active_group = tech_idx;
     let visible = app.visible_quotes();
     assert_eq!(visible.len(), 2);
     let syms: Vec<&str> = visible.iter().map(|q| q.symbol.as_str()).collect();
@@ -658,8 +685,13 @@ async fn test_groups_filter_visible_quotes() {
     assert!(syms.contains(&"GOOGL"));
 
     // Switch to crypto group
-    let crypto_idx = app.groups.iter().position(|g| g == "crypto").unwrap();
-    app.active_group = crypto_idx;
+    let crypto_idx = app
+        .domain
+        .groups
+        .iter()
+        .position(|g| g == "crypto")
+        .unwrap();
+    app.domain.active_group = crypto_idx;
     let visible = app.visible_quotes();
     assert_eq!(visible.len(), 1);
     assert_eq!(visible[0].symbol, "BTC-USD");
@@ -677,8 +709,8 @@ async fn test_real_yahoo_api() {
 
     app.refresh().await.unwrap();
 
-    assert!(!app.quotes.is_empty(), "expected at least one quote");
-    let q = &app.quotes[0];
+    assert!(!app.domain.quotes.is_empty(), "expected at least one quote");
+    let q = &app.domain.quotes[0];
     assert_eq!(q.symbol, "AAPL");
     assert!(q.price > 0.0, "price must be positive, got {}", q.price);
 }

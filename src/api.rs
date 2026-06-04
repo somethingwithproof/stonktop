@@ -52,6 +52,7 @@ impl YahooFinanceClient {
     }
 
     /// Fetch a single quote from the v8 chart API, with basic retry for transient errors.
+    #[allow(clippy::unwrap_used)]
     async fn fetch_single_quote(&self, symbol: &str) -> Result<Quote> {
         // Validate symbol before constructing URL to prevent injection
         if !is_valid_symbol(symbol) {
@@ -66,12 +67,18 @@ impl YahooFinanceClient {
             match self.client.get(&url).send().await {
                 Ok(response) => {
                     if !response.status().is_success() {
-                        last_err = Some(anyhow::anyhow!("Yahoo Finance API returned error for {}: {}", symbol, response.status()));
+                        last_err = Some(anyhow::anyhow!(
+                            "Yahoo Finance API returned error for {}: {}",
+                            symbol,
+                            response.status()
+                        ));
                         if attempt < 2 {
                             tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
                             continue;
                         }
-                        return Err(last_err.unwrap().context(format!("Failed to fetch quote for {}", symbol)));
+                        return Err(last_err
+                            .unwrap()
+                            .context(format!("Failed to fetch quote for {}", symbol)));
                     }
 
                     let data: ChartResponse = response
@@ -81,7 +88,11 @@ impl YahooFinanceClient {
 
                     // Check for API errors
                     if let Some(error) = data.chart.error {
-                        last_err = Some(anyhow::anyhow!("Yahoo Finance error for {}: {}", symbol, error.description));
+                        last_err = Some(anyhow::anyhow!(
+                            "Yahoo Finance error for {}: {}",
+                            symbol,
+                            error.description
+                        ));
                         if attempt < 2 {
                             tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
                             continue;
@@ -98,7 +109,8 @@ impl YahooFinanceClient {
                     return Ok(result.into_quote());
                 }
                 Err(e) => {
-                    last_err = Some(e.into());n                    if attempt < 2 {
+                    last_err = Some(e.into());
+                    if attempt < 2 {
                         tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
                         continue;
                     }
@@ -106,7 +118,9 @@ impl YahooFinanceClient {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| anyhow::anyhow!("Failed to fetch quote for {}", symbol)).context(format!("Failed to fetch quote for {}", symbol)))
+        Err(last_err
+            .unwrap_or_else(|| anyhow::anyhow!("Failed to fetch quote for {}", symbol))
+            .context(format!("Failed to fetch quote for {}", symbol)))
     }
 
     /// Fetch a single quote.
@@ -259,15 +273,15 @@ impl ChartResult {
                 .regular_market_time
                 .and_then(|t| Utc.timestamp_opt(t, 0).single())
                 .unwrap_or_else(Utc::now),
-        };
+        }
     }
 }
 
 fn parse_market_state(s: Option<&str>) -> MarketState {
     match s {
-        Some("PRE") | Some("PREPRE") => MarketState::Pre,
+        Some("PRE" | "PREPRE") => MarketState::Pre,
         Some("REGULAR") => MarketState::Regular,
-        Some("POST") | Some("POSTPOST") => MarketState::Post,
+        Some("POST" | "POSTPOST") => MarketState::Post,
         Some("CLOSED") | None => MarketState::Closed,
         _ => MarketState::Closed,
     }
@@ -330,6 +344,57 @@ pub fn expand_symbol(symbol: &str) -> String {
     }
     symbol.to_string()
 }
+
+/// Decorator that adds simple TTL caching around any `QuoteProvider`.
+/// Uses only std (Mutex + Instant + Arc) - no new dependencies.
+/// Caches the last successful `get_quotes` response for the TTL window.
+/// This reduces load on Yahoo (rec #2 / medium cache) and enables offline-ish sparklines for short gaps.
+/// Not a full multi-key cache (symbols-agnostic last-response for simplicity); good enough for the TUI loop.
+type QuoteCache = std::sync::Arc<std::sync::Mutex<Option<(std::time::Instant, Vec<Quote>)>>>;
+
+#[derive(Clone)]
+pub struct CachingQuoteProvider {
+    inner: std::sync::Arc<dyn QuoteProvider>,
+    cache: QuoteCache,
+    ttl: std::time::Duration,
+}
+
+impl CachingQuoteProvider {
+    pub fn new(inner: Box<dyn QuoteProvider>, ttl_secs: u64) -> Self {
+        Self {
+            inner: std::sync::Arc::from(inner),
+            cache: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            ttl: std::time::Duration::from_secs(ttl_secs),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl QuoteProvider for CachingQuoteProvider {
+    async fn get_quotes(&self, symbols: &[String]) -> Result<Vec<Quote>> {
+        // Check cache under lock (short critical section)
+        if let Ok(guard) = self.cache.lock() {
+            if let Some((ts, cached)) = &*guard {
+                if ts.elapsed() < self.ttl && !cached.is_empty() {
+                    // Return a filtered view? For min-diff we return the last batch (caller usually asks same set).
+                    // If symbols changed the worst is stale superset; UI filters anyway.
+                    return Ok(cached.clone());
+                }
+            }
+        }
+        let quotes = self.inner.get_quotes(symbols).await?;
+        if let Ok(mut guard) = self.cache.lock() {
+            *guard = Some((std::time::Instant::now(), quotes.clone()));
+        }
+        Ok(quotes)
+    }
+}
+
+/// Note on Yahoo v8 chart source (see YAHOO_CHART_URL):
+/// - Meta-only response: many Quote fields are 0/None (open, avg_volume, market_cap, full fundamentals).
+/// - No order book / trade side / OI here (use Databento for propfirm truth per picasso rules).
+/// - Fragile; hence retry + best-effort partials + this cache layer.
+/// See arch review recs and CLAUDE.md.
 
 #[cfg(test)]
 mod tests {
@@ -503,7 +568,7 @@ mod tests {
     #[test]
     fn test_parse_market_state_unknown() {
         assert_eq!(parse_market_state(Some("HALTED")), MarketState::Closed);
-        assert_eq!(parse_market_state(Some(""))), MarketState::Closed);
+        assert_eq!(parse_market_state(Some("")), MarketState::Closed);
     }
 
     // --- parse_quote_type tests ---

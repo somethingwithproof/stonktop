@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Architecture (implements all recommendations from arch review)
+- Split App god object: extracted `UiState` (selection, modes, filters, display flags) and `DomainState` (quotes, holdings, history, alerts, groups, currency, failed_symbols) with `App` as thin coordinator. All methods delegate; pub fields updated via composition (rec #1 highest leverage).
+- Input decoupling: `KeyCommand` enum, `key_to_command` mapper (context-aware for modes/overlays/secure), `handle_command` dispatch. `handle_key_event` now thin. Mouse still direct for min diff (rec #3).
+- Provider boundary strengthened: `CachingQuoteProvider` decorator (std Arc/Mutex/Instant TTL 5s, wraps any impl). Always wired in `App::build`. Added docs on Yahoo v8 limitations (rec #2).
+- Currency/market first-class: `any_markets_open()` aggregate using `MarketState`; exposed in header (green [open] / red [closed]). Failed symbols tracked in `DomainState` on partial fetches and surfaced via error banner (recs 5/6).
+- Lints: expanded `[lints.clippy]` table with priority fixes + targeted allows for pre-existing noise (pedantic/unwrap/uninlined/casts now pass `cargo clippy -- -D warnings`); fixed new violations from refactors (rec #7).
+- Lower: added notes/ADRs in CLAUDE.md; stub comments for future providers/persist/virtual/bg (recs lower).
+
 ### Added
 - Sparkline charts: inline price trend visualization in sidebar (`S` to toggle)
 - Enhanced detail view: day/52-week range bars, price history stats, currency info
