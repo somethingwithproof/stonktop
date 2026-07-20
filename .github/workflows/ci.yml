@@ -97,15 +97,15 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   msrv:
-    name: MSRV (1.88)
+    name: MSRV (1.89)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
 
-      - name: Install Rust 1.88
+      - name: Install Rust 1.89
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
         with:
-          toolchain: "1.88"
+          toolchain: "1.89"
 
       - name: Cache cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4
@@ -140,7 +140,12 @@ jobs:
         run: command -v cargo-audit || cargo install --locked cargo-audit
 
       - name: Run security audit
-        run: cargo audit
+        # notify-rust pulls the affected quick-xml only on Windows. Its
+        # current winrt backend does not yet allow quick-xml 0.41.
+        run: >-
+          cargo audit
+          --ignore RUSTSEC-2026-0194
+          --ignore RUSTSEC-2026-0195
 
   publish-dry-run:
     name: Publish Dry Run
