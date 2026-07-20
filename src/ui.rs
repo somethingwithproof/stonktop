@@ -386,13 +386,14 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
             Some((*quote, holding))
         })
         .collect();
+    let selected = app.ui.selected.min(holdings_data.len().saturating_sub(1));
 
     let rows = holdings_data
         .iter()
         .enumerate()
         .skip(app.ui.scroll_offset)
         .map(|(display_idx, (quote, holding))| {
-            let is_selected = display_idx == app.ui.selected;
+            let is_selected = display_idx == selected;
 
             let value = holding.current_value(quote.price);
             let cost = holding.total_cost();
@@ -445,9 +446,9 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
         .block(Block::default().borders(Borders::NONE))
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-    let adjusted_selected = app.ui.selected.saturating_sub(app.ui.scroll_offset);
+    let adjusted_selected = selected.saturating_sub(app.ui.scroll_offset);
     let mut state = TableState::default();
-    state.select(Some(adjusted_selected));
+    state.select((!holdings_data.is_empty()).then_some(adjusted_selected));
     frame.render_stateful_widget(table, area, &mut state);
 }
 

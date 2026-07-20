@@ -372,19 +372,22 @@ impl CachingQuoteProvider {
 #[async_trait::async_trait]
 impl QuoteProvider for CachingQuoteProvider {
     async fn get_quotes(&self, symbols: &[String]) -> Result<Vec<Quote>> {
-        // Check cache under lock (short critical section)
-        if let Ok(guard) = self.cache.lock() {
-            if let Some((ts, cached)) = &*guard {
-                if ts.elapsed() < self.ttl && !cached.is_empty() {
-                    let requested: Vec<Quote> = symbols
-                        .iter()
-                        .filter_map(|symbol| cached.iter().find(|quote| quote.symbol == *symbol))
-                        .cloned()
-                        .collect();
-                    if requested.len() == symbols.len() {
-                        return Ok(requested);
-                    }
-                }
+        // Clone the valid cache under lock, then perform the scan without
+        // holding the mutex so concurrent callers are not serialized here.
+        let cached_snapshot = self.cache.lock().ok().and_then(|guard| {
+            guard
+                .as_ref()
+                .filter(|(ts, cached)| ts.elapsed() < self.ttl && !cached.is_empty())
+                .map(|(_, cached)| cached.clone())
+        });
+        if let Some(cached) = cached_snapshot {
+            let requested: Vec<Quote> = symbols
+                .iter()
+                .filter_map(|symbol| cached.iter().find(|quote| quote.symbol == *symbol))
+                .cloned()
+                .collect();
+            if requested.len() == symbols.len() {
+                return Ok(requested);
             }
         }
         let quotes = self.inner.get_quotes(symbols).await?;

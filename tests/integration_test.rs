@@ -190,8 +190,7 @@ fn test_docker_live_e2e() {
         .output()
         .expect("Failed to run docker. Did you `docker build -t stonktop:test .` first?");
 
-    // The containerized app should succeed or at least produce recognizable output
-    // (network hiccup in some envs is ok as long as it doesn't crash hard).
+    // The containerized live request must succeed and produce recognizable output.
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
