@@ -160,7 +160,7 @@ impl Args {
         Args::parse()
     }
 
-    // use_colors and atty_check removed as the ColorMode feature is fully wired via App.color_mode and UiColors::for_app (see review improvements)
+    // use_colors and atty_check were removed; color mode is wired via App.ui.color_mode and UiColors::for_app.
 }
 
 #[cfg(test)]

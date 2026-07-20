@@ -141,6 +141,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
     let gains = visible.iter().filter(|q| q.change_percent > 0.0).count();
     let losses = visible.iter().filter(|q| q.change_percent < 0.0).count();
     let unchanged = visible.len() - gains - losses;
+    let markets_open = app.any_markets_open();
 
     let header_text = if app.ui.show_holdings {
         let total_value = app.total_portfolio_value();
@@ -205,12 +206,8 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
                 Span::raw(format!("{} unchanged  ", unchanged)),
                 Span::raw(format!("Updated: {} ", app.time_since_refresh())),
                 Span::styled(
-                    if app.any_markets_open() {
-                        "[open]"
-                    } else {
-                        "[closed]"
-                    },
-                    Style::default().fg(if app.any_markets_open() {
+                    if markets_open { "[open]" } else { "[closed]" },
+                    Style::default().fg(if markets_open {
                         colors.gain
                     } else {
                         colors.loss

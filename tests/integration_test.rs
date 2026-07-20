@@ -145,22 +145,26 @@ fn test_env_vars_documented() {
 }
 
 /// Live E2E / integration test running the *packaged* app inside Docker.
-/// 
+///
 /// This exercises the release artifact (the binary as it would be distributed)
 /// in a containerized "live" environment (reproducible base OS, no host pollution).
-/// 
+///
 /// Requires Docker daemon + the image built locally with the provided Dockerfile:
 ///   docker build -t stonktop:test .
-/// 
+///
 /// Run locally: cargo test --test integration_test test_docker_live_e2e -- --ignored
-/// 
+///
 /// In CI this is driven by the dedicated "docker" job which builds the image once
 /// then invokes this test (with --ignored).
 #[test]
 #[ignore]
 fn test_docker_live_e2e() {
     // Graceful skip if no docker in the environment (common in some dev setups).
-    if Command::new("docker").arg("--version").output().is_err() {
+    let docker_available = Command::new("docker")
+        .arg("info")
+        .output()
+        .is_ok_and(|output| output.status.success());
+    if !docker_available {
         eprintln!("skipping test_docker_live_e2e: 'docker' command not available (requires Docker daemon + `docker build -t stonktop:test .`)");
         return;
     }
@@ -172,11 +176,16 @@ fn test_docker_live_e2e() {
     // --rm for cleanup, no tty (batch mode is fine), short timeout to keep test fast.
     let output = Command::new("docker")
         .args([
-            "run", "--rm",
+            "run",
+            "--rm",
             image,
-            "-s", "AAPL",
-            "-b", "-n", "1",
-            "--timeout", "8",
+            "-s",
+            "AAPL",
+            "-b",
+            "-n",
+            "1",
+            "--timeout",
+            "8",
         ])
         .output()
         .expect("Failed to run docker. Did you `docker build -t stonktop:test .` first?");
@@ -186,14 +195,9 @@ fn test_docker_live_e2e() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    if output.status.success() {
-        assert!(
-            stdout.contains("AAPL") || stdout.contains("STONKTOP") || stdout.contains("price"),
-            "expected recognizable batch output from live docker run, got: {}",
-            stdout
-        );
-    } else {
-        // Acceptable in restricted CI envs without net; the important thing is it ran the packaged binary.
-        eprintln!("docker live e2e non-zero exit (may be network): stderr={}", stderr);
-    }
+    assert!(output.status.success(), "docker live e2e failed: {stderr}");
+    assert!(
+        stdout.contains("AAPL") || stdout.contains("STONKTOP") || stdout.contains("price"),
+        "expected recognizable batch output from live docker run, got: {stdout}"
+    );
 }

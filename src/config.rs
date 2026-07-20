@@ -253,7 +253,7 @@ impl Config {
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
 
         // Basic validation (review improvement)
-        if config.general.refresh_interval <= 0.0 {
+        if !config.general.refresh_interval.is_finite() || config.general.refresh_interval <= 0.0 {
             anyhow::bail!(
                 "refresh_interval must be positive (got {})",
                 config.general.refresh_interval

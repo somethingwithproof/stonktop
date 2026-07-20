@@ -349,7 +349,7 @@ pub fn expand_symbol(symbol: &str) -> String {
 /// Uses only std (Mutex + Instant + Arc) - no new dependencies.
 /// Caches the last successful `get_quotes` response for the TTL window.
 /// This reduces load on Yahoo (rec #2 / medium cache) and enables offline-ish sparklines for short gaps.
-/// Not a full multi-key cache (symbols-agnostic last-response for simplicity); good enough for the TUI loop.
+/// Cache hits are used only when every requested symbol is present.
 type QuoteCache = std::sync::Arc<std::sync::Mutex<Option<(std::time::Instant, Vec<Quote>)>>>;
 
 #[derive(Clone)]
@@ -376,9 +376,14 @@ impl QuoteProvider for CachingQuoteProvider {
         if let Ok(guard) = self.cache.lock() {
             if let Some((ts, cached)) = &*guard {
                 if ts.elapsed() < self.ttl && !cached.is_empty() {
-                    // Return a filtered view? For min-diff we return the last batch (caller usually asks same set).
-                    // If symbols changed the worst is stale superset; UI filters anyway.
-                    return Ok(cached.clone());
+                    let requested: Vec<Quote> = symbols
+                        .iter()
+                        .filter_map(|symbol| cached.iter().find(|quote| quote.symbol == *symbol))
+                        .cloned()
+                        .collect();
+                    if requested.len() == symbols.len() {
+                        return Ok(requested);
+                    }
                 }
             }
         }
@@ -639,6 +644,35 @@ mod tests {
             1,
             "inner should be called only once (cache hit on second)"
         );
+    }
+
+    #[tokio::test]
+    async fn test_caching_provider_filters_subset_and_fetches_missing_symbols() {
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let inner = CountingProvider {
+            calls: Arc::clone(&call_count),
+            response: vec![
+                Quote {
+                    symbol: "ONE".into(),
+                    ..Quote::default()
+                },
+                Quote {
+                    symbol: "TWO".into(),
+                    ..Quote::default()
+                },
+            ],
+        };
+        let cache = CachingQuoteProvider::new(Box::new(inner), 60);
+
+        cache
+            .get_quotes(&["ONE".into(), "TWO".into()])
+            .await
+            .unwrap();
+        let subset = cache.get_quotes(&["TWO".into()]).await.unwrap();
+        assert_eq!(subset.len(), 1);
+        assert_eq!(subset[0].symbol, "TWO");
+        cache.get_quotes(&["THREE".into()]).await.unwrap();
+        assert_eq!(call_count.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
