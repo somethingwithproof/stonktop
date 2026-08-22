@@ -48,9 +48,13 @@ fi
 
 # Update version in Cargo.toml (portable cp+sed+mv to avoid -i portability issues on GNU vs BSD sed)
 echo "==> Updating version in Cargo.toml to $VERSION"
-cp Cargo.toml Cargo.toml.bak
-sed -e "s/^version = \\".*\\"/version = \"$VERSION\"/" Cargo.toml.bak > Cargo.toml
-rm -f Cargo.toml.bak
+# Write through a temp file and rename: redirecting straight into Cargo.toml
+# truncates it before sed writes, so an interruption left it empty.
+_cargo_tmp="$(mktemp)"
+trap 'rm -f "$_cargo_tmp"' EXIT
+sed -e "s/^version = \\".*\\"/version = \"$VERSION\"/" Cargo.toml > "$_cargo_tmp"
+mv "$_cargo_tmp" Cargo.toml
+trap - EXIT
 
 # Update Cargo.lock
 echo "==> Updating Cargo.lock"
