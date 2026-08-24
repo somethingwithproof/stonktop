@@ -5,7 +5,7 @@
 # Used for integration and "live" E2E testing in Docker (reproducible packaged app).
 
 # Build stage - use MSRV base for consistency with project
-FROM rust:1.88-slim-bookworm AS builder
+FROM rust:1.89-slim-bookworm AS builder
 
 WORKDIR /app
 
