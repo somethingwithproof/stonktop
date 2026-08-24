@@ -899,7 +899,7 @@ impl App {
             KeyCommand::InputConfirm => {
                 if self.ui.input_mode == InputMode::AddSymbol {
                     if !self.ui.input_buffer.is_empty() {
-                        let symbol = self.ui.input_buffer.drain(..).collect::<String>();
+                        let symbol = std::mem::take(&mut self.ui.input_buffer);
                         self.add_symbol(&symbol.to_uppercase());
                         self.last_refresh = None;
                     }
