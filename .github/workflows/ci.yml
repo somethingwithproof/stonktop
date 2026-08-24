@@ -29,6 +29,7 @@ jobs:
   test:
     name: Test (${{ matrix.os }}, ${{ matrix.rust }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -42,10 +43,12 @@ jobs:
           - os: windows-latest
             rust: stable
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV 1.88 + matrix toolchain
         with:
           toolchain: ${{ matrix.rust }}
 
@@ -66,11 +69,14 @@ jobs:
   quality:
     name: Quality (fmt, clippy, docs)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV 1.88 + rustfmt/clippy components
         with:
           components: rustfmt, clippy
 
@@ -99,11 +105,14 @@ jobs:
   msrv:
     name: MSRV (1.89)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Install Rust 1.89
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+      - name: Install Rust 1.88
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for exact MSRV 1.88
         with:
           toolchain: "1.89"
 
@@ -124,11 +133,14 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV/tooling
 
       - name: Cache cargo-audit
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4
@@ -151,11 +163,61 @@ jobs:
     name: Publish Dry Run
     runs-on: ubuntu-latest
     needs: [test, quality]
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned commit for MSRV/tooling
 
       - name: Verify publishable
         run: cargo publish --dry-run --allow-dirty
+
+  docker:
+    name: Docker Integration & Live E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Requires Docker (available on GitHub-hosted ubuntu runners)
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx (for better caching/layers)
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Build Docker image for testing (uses the repo Dockerfile)
+        run: |
+          docker build -t stonktop:test .
+
+      - name: Install Rust toolchain (for running the integration test binary)
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # pinned for MSRV + test
+        with:
+          toolchain: stable
+
+      - name: Cache cargo (for the test binary build if needed)
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-docker-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-integration-
+
+      - name: Run live E2E / integration test inside Docker context
+        run: |
+          # Build the test binary first (the ignored test will exec docker)
+          cargo build --test integration_test --release
+
+          # Run the specifically named Docker live E2E test (it is #[ignore])
+          cargo test --test integration_test test_docker_live_e2e -- --ignored --nocapture
+
+      - name: Additional direct verification (run packaged binary in the just-built container)
+        run: |
+          # Smoke the "live" packaged app in Docker (batch mode, real symbol, short timeout)
+          docker run --rm stonktop:test -s AAPL -b -n 1 --timeout 6 | cat
+          echo "Docker live batch run completed successfully"

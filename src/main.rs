@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     let mut app = App::new(&args, &config)?;
 
     // Check if we have any symbols to watch
-    if app.symbols.is_empty() {
+    if app.domain.symbols.is_empty() {
         eprintln!("Error: No symbols to watch.");
         eprintln!("Provide symbols via -s flag or config file.");
         eprintln!();
@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
     }
 
     // Run in batch mode or interactive mode
-    if app.batch_mode {
+    if app.ui.batch_mode {
         run_batch(&mut app, &args.format).await
     } else {
         run_interactive(&mut app).await
@@ -157,7 +157,7 @@ async fn run_app(
         // Draw UI
         terminal.draw(|f| ui::render(f, app))?;
         if let Ok(size) = terminal.size() {
-            app.terminal_height = size.height;
+            app.ui.terminal_height = size.height;
         }
 
         // Handle events with timeout
@@ -166,16 +166,16 @@ async fn run_app(
                 Event::Key(key) => {
                     app.handle_key_event(key.code, key.modifiers);
                 }
-                Event::Mouse(mouse) if !app.secure_mode => match mouse.kind {
+                Event::Mouse(mouse) if !app.ui.secure_mode => match mouse.kind {
                     MouseEventKind::ScrollUp => app.select_up(),
                     MouseEventKind::ScrollDown => app.select_down(),
                     MouseEventKind::Down(_) => {
                         let row = mouse.row as usize;
                         if row >= TABLE_DATA_START_ROW {
-                            let idx = row - TABLE_DATA_START_ROW + app.scroll_offset;
+                            let idx = row - TABLE_DATA_START_ROW + app.ui.scroll_offset;
                             let visible_len = app.visible_quotes().len();
                             if idx < visible_len {
-                                app.selected = idx;
+                                app.ui.selected = idx;
                             }
                         }
                     }
