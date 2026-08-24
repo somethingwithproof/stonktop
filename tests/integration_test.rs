@@ -1,5 +1,7 @@
 //! Integration tests for stonktop CLI.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::process::Command;
 
 /// Get the path to the stonktop binary.
@@ -60,7 +62,7 @@ fn test_invalid_delay() {
 /// This test is ignored by default as it requires network access.
 /// Run with: cargo test -- --ignored
 #[test]
-#[ignore]
+#[ignore = "hits the live network"]
 fn test_batch_mode_with_network() {
     let child = stonktop_bin()
         .args(["-s", "AAPL", "-b", "-n", "1", "--timeout", "5"])
@@ -157,7 +159,7 @@ fn test_env_vars_documented() {
 /// In CI this is driven by the dedicated "docker" job which builds the image once
 /// then invokes this test (with --ignored).
 #[test]
-#[ignore]
+#[ignore = "requires a locally built stonktop:test image"]
 fn test_docker_live_e2e() {
     // Graceful skip if no docker in the environment (common in some dev setups).
     let docker_available = Command::new("docker")

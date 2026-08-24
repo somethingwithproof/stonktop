@@ -1014,6 +1014,7 @@ fn render_batch_csv(app: &App) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     // --- format_price tests ---
@@ -1027,7 +1028,7 @@ mod tests {
 
     #[test]
     fn test_format_price_penny() {
-        assert_eq!(format_price(0.001234), "$0.001234");
+        assert_eq!(format_price(0.001_234), "$0.001234");
         assert_eq!(format_price(0.99), "$0.990000");
     }
 
@@ -1039,7 +1040,7 @@ mod tests {
     #[test]
     fn test_format_price_negative() {
         assert_eq!(format_price(-5.50), "$-5.50");
-        assert_eq!(format_price(-0.001234), "$-0.001234");
+        assert_eq!(format_price(-0.001_234), "$-0.001234");
     }
 
     #[test]

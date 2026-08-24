@@ -398,14 +398,15 @@ impl QuoteProvider for CachingQuoteProvider {
     }
 }
 
-/// Note on Yahoo v8 chart source (see YAHOO_CHART_URL):
-/// - Meta-only response: many Quote fields are 0/None (open, avg_volume, market_cap, full fundamentals).
-/// - No order book / trade side / OI here (use Databento for propfirm truth per picasso rules).
-/// - Fragile; hence retry + best-effort partials + this cache layer.
-/// See arch review recs and CLAUDE.md.
+// Note on Yahoo v8 chart source (see YAHOO_CHART_URL):
+//   - Meta-only response: many Quote fields are 0/None (open, avg_volume,
+//     market_cap, full fundamentals).
+//   - No order book / trade side / OI here (use Databento for propfirm truth).
+//   - Fragile; hence retry + best-effort partials + this cache layer.
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     // --- is_valid_symbol tests ---

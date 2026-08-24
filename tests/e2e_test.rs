@@ -4,6 +4,8 @@
 //! parsing using wiremock to stand in for Yahoo Finance. No real network
 //! calls except where #[ignore] is present.
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use clap::Parser;
 use std::io::Write;
 use std::time::Duration;
@@ -707,7 +709,7 @@ async fn test_groups_filter_visible_quotes() {
 ///
 /// Skipped in CI; run with: cargo test -- --ignored
 #[tokio::test]
-#[ignore]
+#[ignore = "hits the live network"]
 async fn test_real_yahoo_api() {
     let args = Args::parse_from(["stonktop", "-s", "AAPL", "-b", "-n", "1"]);
     let config = Config::default();

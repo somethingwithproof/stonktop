@@ -418,6 +418,7 @@ crypto = ["BTC-USD", "ETH-USD", "SOL-USD"]
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
