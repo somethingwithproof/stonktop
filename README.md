@@ -6,7 +6,7 @@ A top-like terminal UI for monitoring stock and cryptocurrency prices in real-ti
 [![Downloads](https://img.shields.io/crates/d/stonktop.svg)](https://crates.io/crates/stonktop)
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=flat&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/thomasvincent/stonktop/workflows/CI/badge.svg)](https://github.com/thomasvincent/stonktop/actions)
+[![CI](https://github.com/somethingwithproof/stonktop/workflows/CI/badge.svg)](https://github.com/somethingwithproof/stonktop/actions)
 
 ## Features
 
@@ -66,7 +66,7 @@ cargo binstall stonktop
 
 ### Pre-built Binaries
 
-Download pre-built binaries from the [Releases](https://github.com/thomasvincent/stonktop/releases) page.
+Download pre-built binaries from the [Releases](https://github.com/somethingwithproof/stonktop/releases) page.
 
 Available platforms:
 - Linux (x86_64, aarch64, musl)
@@ -76,7 +76,7 @@ Available platforms:
 ### From Source
 
 ```bash
-git clone https://github.com/thomasvincent/stonktop.git
+git clone https://github.com/somethingwithproof/stonktop.git
 cd stonktop
 cargo build --release
 cargo install --path .

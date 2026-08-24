@@ -6,6 +6,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+/// Price value (f64 alias for display/quote values from Yahoo API).
+/// See review for rationale: sufficient for TUI, future decimal possible.
+pub type Price = f64;
+
 /// Represents a financial quote for a stock or cryptocurrency.
 /// Contains all the numbers you need to feel emotions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,23 +19,23 @@ pub struct Quote {
     /// Full name of the security
     pub name: String,
     /// Current price
-    pub price: f64,
+    pub price: Price,
     /// Price change from previous close
-    pub change: f64,
+    pub change: Price,
     /// Percentage change from previous close
     pub change_percent: f64,
     /// Previous closing price
-    pub previous_close: f64,
+    pub previous_close: Price,
     /// Opening price for the day
-    pub open: f64,
+    pub open: Price,
     /// Day's high price
-    pub day_high: f64,
+    pub day_high: Price,
     /// Day's low price
-    pub day_low: f64,
+    pub day_low: Price,
     /// 52-week high
-    pub year_high: f64,
+    pub year_high: Price,
     /// 52-week low
-    pub year_low: f64,
+    pub year_low: Price,
     /// Trading volume
     pub volume: u64,
     /// Average volume
@@ -144,17 +148,17 @@ impl Holding {
     }
 
     /// Calculate current value given current price.
-    pub fn current_value(&self, price: f64) -> f64 {
+    pub fn current_value(&self, price: Price) -> f64 {
         self.quantity * price
     }
 
     /// Calculate profit/loss given current price.
-    pub fn profit_loss(&self, price: f64) -> f64 {
+    pub fn profit_loss(&self, price: Price) -> f64 {
         self.current_value(price) - self.total_cost()
     }
 
     /// Calculate profit/loss percentage given current price.
-    pub fn profit_loss_percent(&self, price: f64) -> f64 {
+    pub fn profit_loss_percent(&self, price: Price) -> f64 {
         if self.total_cost() == 0.0 {
             0.0
         } else {
@@ -217,10 +221,10 @@ pub trait QuoteProvider: Send + Sync {
 /// and min/max on each push so rendering is allocation-free.
 #[derive(Debug, Clone)]
 pub struct PriceHistory {
-    prices: VecDeque<f64>,
+    prices: VecDeque<Price>,
     max_len: usize,
     sparkline_cache: Vec<u64>,
-    min_max_cache: Option<(f64, f64)>,
+    min_max_cache: Option<(Price, Price)>,
 }
 
 impl Default for PriceHistory {
@@ -245,7 +249,7 @@ impl PriceHistory {
         }
     }
 
-    pub fn push(&mut self, price: f64) {
+    pub fn push(&mut self, price: Price) {
         if !price.is_finite() {
             return;
         }
@@ -291,12 +295,12 @@ impl PriceHistory {
         &self.sparkline_cache
     }
 
-    pub fn min_max(&self) -> Option<(f64, f64)> {
+    pub fn min_max(&self) -> Option<(Price, Price)> {
         self.min_max_cache
     }
 
     #[allow(dead_code)]
-    pub fn to_vec(&self) -> Vec<f64> {
+    pub fn to_vec(&self) -> Vec<Price> {
         self.prices.iter().copied().collect()
     }
 
@@ -337,6 +341,7 @@ impl SortDirection {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     // --- PriceHistory tests ---
@@ -346,7 +351,7 @@ mod tests {
         let h = PriceHistory::new(5);
         assert!(h.is_empty());
         assert_eq!(h.len(), 0);
-        assert_eq!(h.to_vec(), vec![] as Vec<f64>);
+        assert_eq!(h.to_vec(), vec![] as Vec<Price>);
     }
 
     #[test]

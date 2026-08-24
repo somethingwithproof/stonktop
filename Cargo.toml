@@ -6,8 +6,8 @@ rust-version = "1.89"
 authors = ["Thomas Vincent <thomasvincent@gmail.com>"]
 description = "A top-like terminal UI for monitoring stock and cryptocurrency prices"
 documentation = "https://docs.rs/stonktop"
-homepage = "https://github.com/thomasvincent/stonktop"
-repository = "https://github.com/thomasvincent/stonktop"
+homepage = "https://github.com/somethingwithproof/stonktop"
+repository = "https://github.com/somethingwithproof/stonktop"
 license = "MIT"
 keywords = ["stocks", "cryptocurrency", "terminal", "tui", "finance"]
 categories = ["command-line-utilities", "finance"]
@@ -67,6 +67,43 @@ name = "stonktop"
 path = "src/lib.rs"
 
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/stonktop-{ target }.tar.gz"
-bin-dir = "stonktop-{ target }/{ bin }{ binary-ext }"
+# Matches the exact artifact names produced by .github/workflows/release.yml on every tagged release.
+# Assets: stonktop-v{version}-{target}.tar.gz (unix) or .zip (windows) + .sha256
+# The inner tar/zip contains a dir "stonktop-v{version}-{target}/" with the binary + docs.
+pkg-url = "{ repo }/releases/download/v{ version }/stonktop-v{ version }-{ target }.{ archive-format }"
+bin-dir = "stonktop-v{ version }-{ target }/{ bin }{ binary-ext }"
 pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# Pre-existing stylistic/pedantic noise in ui/api formatting and casts (targeted allows; not introduced by arch recs).
+uninlined_format_args = "allow"
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+match_same_arms = "allow"
+must_use_candidate = "allow"
+implicit_hasher = "allow"
+needless_continue = "allow"
+doc_markdown = "allow"
+too_many_lines = "allow"
+float_cmp = "allow"
+redundant_closure_for_method_calls = "allow"
+single_match_else = "allow"
+format_push_string = "allow"
+struct_excessive_bools = "allow"
+return_self_not_must_use = "allow"
+struct_field_names = "allow"
+trivially_copy_pass_by_ref = "allow"
+items_after_statements = "allow"

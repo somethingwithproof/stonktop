@@ -40,7 +40,7 @@ impl Default for UiColors {
 impl UiColors {
     /// Create colors appropriate for the given color mode and config.
     pub fn for_app(app: &App) -> Self {
-        match app.color_mode {
+        match app.ui.color_mode {
             crate::cli::ColorMode::Never => Self {
                 gain: Color::Reset,
                 loss: Color::Reset,
@@ -49,7 +49,7 @@ impl UiColors {
                 selected_bg: Color::Reset,
                 border: Color::Reset,
             },
-            _ => Self::from_config(&app.color_config),
+            _ => Self::from_config(&app.ui.color_config),
         }
     }
 
@@ -98,14 +98,14 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_header(frame, app, chunks[0], &colors);
 
     // Render main table (with optional sparkline area)
-    if app.show_sparklines && !app.show_holdings {
+    if app.ui.show_sparklines && !app.ui.show_holdings {
         let table_spark = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Min(60), Constraint::Length(22)])
             .split(chunks[1]);
         render_quotes_table(frame, app, table_spark[0], &colors);
         render_sparklines(frame, app, table_spark[1], &colors);
-    } else if app.show_holdings {
+    } else if app.ui.show_holdings {
         render_holdings_table(frame, app, chunks[1], &colors);
     } else {
         render_quotes_table(frame, app, chunks[1], &colors);
@@ -115,12 +115,12 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_footer(frame, app, chunks[2], &colors);
 
     // Render help overlay if active
-    if app.show_help {
+    if app.ui.show_help {
         render_help_overlay(frame, &colors);
     }
 
     // Render alerts if any triggered
-    if !app.triggered_alerts.is_empty() {
+    if !app.domain.triggered_alerts.is_empty() {
         render_alerts(frame, app, &colors);
     }
 
@@ -130,7 +130,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     // Render detail popup if active
-    if app.show_detail {
+    if app.ui.show_detail {
         render_detail(frame, app, &colors);
     }
 }
@@ -141,8 +141,9 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
     let gains = visible.iter().filter(|q| q.change_percent > 0.0).count();
     let losses = visible.iter().filter(|q| q.change_percent < 0.0).count();
     let unchanged = visible.len() - gains - losses;
+    let markets_open = app.any_markets_open();
 
-    let header_text = if app.show_holdings {
+    let header_text = if app.ui.show_holdings {
         let total_value = app.total_portfolio_value();
         let total_pnl = app.total_portfolio_pnl();
         let today_change = app.today_portfolio_change();
@@ -203,7 +204,15 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
                 Span::styled(format!("{} ", losses), Style::default().fg(colors.loss)),
                 Span::raw("down  "),
                 Span::raw(format!("{} unchanged  ", unchanged)),
-                Span::raw(format!("Updated: {}", app.time_since_refresh())),
+                Span::raw(format!("Updated: {} ", app.time_since_refresh())),
+                Span::styled(
+                    if markets_open { "[open]" } else { "[closed]" },
+                    Style::default().fg(if markets_open {
+                        colors.gain
+                    } else {
+                        colors.loss
+                    }),
+                ),
             ]),
         ]
     };
@@ -230,7 +239,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
     ];
 
     // Fundamentals mode adds price range columns
-    if app.show_fundamentals {
+    if app.ui.show_fundamentals {
         base_headers.push(("OPEN", SortOrder::Price));
         base_headers.push(("HIGH", SortOrder::Price));
         base_headers.push(("LOW", SortOrder::Price));
@@ -239,14 +248,14 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
     }
 
     // Verbose mode adds extra columns for the truly data-hungry
-    if app.verbose {
+    if app.ui.verbose {
         base_headers.push(("EXCHANGE", SortOrder::Symbol)); // no dedicated sort
         base_headers.push(("CCY", SortOrder::Symbol));
         base_headers.push(("TYPE", SortOrder::Symbol));
     }
 
     let header_cells = base_headers.iter().map(|(name, order)| {
-        let style = if app.sort_order == *order && *name == order.header() {
+        let style = if app.domain.sort_order == *order && *name == order.header() {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
@@ -254,8 +263,8 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             Style::default().fg(Color::White)
         };
 
-        let indicator = if app.sort_order == *order && *name == order.header() {
-            match app.sort_direction {
+        let indicator = if app.domain.sort_order == *order && *name == order.header() {
+            match app.domain.sort_direction {
                 crate::models::SortDirection::Ascending => " ▲",
                 crate::models::SortDirection::Descending => " ▼",
             }
@@ -274,11 +283,11 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
     let visible_quotes: Vec<_> = filtered
         .iter()
         .enumerate()
-        .skip(app.scroll_offset)
+        .skip(app.ui.scroll_offset)
         .collect();
 
     let rows = visible_quotes.iter().map(|(i, quote)| {
-        let is_selected = *i == app.selected;
+        let is_selected = *i == app.ui.selected;
         let change_color = if quote.change_percent > 0.0 {
             colors.gain
         } else if quote.change_percent < 0.0 {
@@ -304,7 +313,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             Cell::from(format_market_cap(quote.market_cap)),
         ];
 
-        if app.show_fundamentals {
+        if app.ui.show_fundamentals {
             cells.push(Cell::from(format_price(quote.open)));
             cells.push(Cell::from(format_price(quote.day_high)));
             cells.push(Cell::from(format_price(quote.day_low)));
@@ -312,7 +321,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             cells.push(Cell::from(format_price(quote.year_low)));
         }
 
-        if app.verbose {
+        if app.ui.verbose {
             cells.push(Cell::from(truncate_string(&quote.exchange, 10)));
             cells.push(Cell::from(quote.currency.clone()));
             cells.push(Cell::from(format!("{}", quote.quote_type)));
@@ -331,7 +340,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         Constraint::Length(12),
     ];
 
-    if app.show_fundamentals {
+    if app.ui.show_fundamentals {
         widths.push(Constraint::Length(12)); // OPEN
         widths.push(Constraint::Length(12)); // HIGH
         widths.push(Constraint::Length(12)); // LOW
@@ -339,7 +348,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         widths.push(Constraint::Length(12)); // 52W L
     }
 
-    if app.verbose {
+    if app.ui.verbose {
         widths.push(Constraint::Length(12));
         widths.push(Constraint::Length(5));
         widths.push(Constraint::Length(8));
@@ -350,7 +359,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         .block(Block::default().borders(Borders::NONE))
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-    let adjusted_selected = app.selected.saturating_sub(app.scroll_offset);
+    let adjusted_selected = app.ui.selected.saturating_sub(app.ui.scroll_offset);
     let mut state = TableState::default();
     state.select(Some(adjusted_selected));
 
@@ -373,17 +382,18 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
     let holdings_data: Vec<_> = visible
         .iter()
         .filter_map(|quote| {
-            let holding = app.holdings.get(&quote.symbol)?;
+            let holding = app.domain.holdings.get(&quote.symbol)?;
             Some((*quote, holding))
         })
         .collect();
+    let selected = app.ui.selected.min(holdings_data.len().saturating_sub(1));
 
     let rows = holdings_data
         .iter()
         .enumerate()
-        .skip(app.scroll_offset)
+        .skip(app.ui.scroll_offset)
         .map(|(display_idx, (quote, holding))| {
-            let is_selected = display_idx == app.selected;
+            let is_selected = display_idx == selected;
 
             let value = holding.current_value(quote.price);
             let cost = holding.total_cost();
@@ -436,20 +446,20 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
         .block(Block::default().borders(Borders::NONE))
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-    let adjusted_selected = app.selected.saturating_sub(app.scroll_offset);
+    let adjusted_selected = selected.saturating_sub(app.ui.scroll_offset);
     let mut state = TableState::default();
-    state.select(Some(adjusted_selected));
+    state.select((!holdings_data.is_empty()).then_some(adjusted_selected));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
 /// Render the footer with keybindings.
 fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
     // Input mode gets a special prompt
-    match app.input_mode {
+    match app.ui.input_mode {
         crate::app::InputMode::AddSymbol => {
             let input_line = Line::from(vec![
                 Span::styled(" Add symbol: ", Style::default().fg(Color::Yellow)),
-                Span::raw(&app.input_buffer),
+                Span::raw(&app.ui.input_buffer),
                 Span::styled(
                     "_",
                     Style::default()
@@ -465,7 +475,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
         crate::app::InputMode::Search => {
             let input_line = Line::from(vec![
                 Span::styled(" /", Style::default().fg(Color::Yellow)),
-                Span::raw(&app.search_filter),
+                Span::raw(&app.ui.search_filter),
                 Span::styled(
                     "_",
                     Style::default()
@@ -482,15 +492,15 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
         crate::app::InputMode::Normal => {}
     }
 
-    let mode = if app.show_holdings {
+    let mode = if app.ui.show_holdings {
         "Holdings"
     } else {
         "Quotes"
     };
     let sort_info = format!(
         "{} {}",
-        app.sort_order.header(),
-        match app.sort_direction {
+        app.domain.sort_order.header(),
+        match app.domain.sort_direction {
             crate::models::SortDirection::Ascending => "▲",
             crate::models::SortDirection::Descending => "▼",
         }
@@ -779,7 +789,7 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
         ];
 
         // Sparkline history if available
-        if let Some(history) = app.price_history.get(&quote.symbol) {
+        if let Some(history) = app.domain.price_history.get(&quote.symbol) {
             if history.len() > 1 {
                 if let Some((min, max)) = history.min_max() {
                     detail_text.push(Line::from(""));
@@ -794,13 +804,13 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
         }
 
         // Currency conversion info
-        if app.currency_convert && quote.currency != app.display_currency {
+        if app.domain.currency_convert && quote.currency != app.domain.display_currency {
             let converted = app.convert_price(quote.price, &quote.currency);
             detail_text.push(Line::from(format!(
                 "  Converted:      {}{:.2} {}",
                 app.currency_symbol(),
                 converted,
-                app.display_currency
+                app.domain.display_currency
             )));
         }
 
@@ -825,6 +835,7 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
 fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
     let area = centered_rect(50, 20, frame.area());
     let text: Vec<Line> = app
+        .domain
         .triggered_alerts
         .iter()
         .map(|(_, msg)| {
@@ -852,7 +863,7 @@ fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
 /// Render sparkline charts sidebar.
 fn render_sparklines(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
     let filtered = app.visible_quotes();
-    let visible: Vec<_> = filtered.iter().skip(app.scroll_offset).collect();
+    let visible: Vec<_> = filtered.iter().skip(app.ui.scroll_offset).collect();
 
     // 1 row for header + 1 row per quote
     let mut constraints = vec![Constraint::Length(1)];
@@ -881,7 +892,7 @@ fn render_sparklines(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors
             break;
         }
         let row_area = rows[i + 1];
-        if let Some(history) = app.price_history.get(&quote.symbol) {
+        if let Some(history) = app.domain.price_history.get(&quote.symbol) {
             if history.len() > 1 {
                 let data = history.sparkline_data();
                 let color = if quote.change_percent >= 0.0 {
@@ -916,15 +927,15 @@ fn render_batch_table(app: &App) {
         Local::now().format("%Y-%m-%d %H:%M:%S")
     );
 
-    if app.show_holdings {
+    if app.ui.show_holdings {
         println!(
             "{:<10} {:<15} {:>10} {:>10} {:>12} {:>12} {:>10} {:>10}",
             "SYMBOL", "NAME", "PRICE", "QTY", "VALUE", "COST", "P/L", "P/L%"
         );
         println!("{}", "-".repeat(100));
 
-        for quote in &app.quotes {
-            if let Some(holding) = app.holdings.get(&quote.symbol) {
+        for quote in &app.domain.quotes {
+            if let Some(holding) = app.domain.holdings.get(&quote.symbol) {
                 let value = holding.current_value(quote.price);
                 let cost = holding.total_cost();
                 let pnl = holding.profit_loss(quote.price);
@@ -950,7 +961,7 @@ fn render_batch_table(app: &App) {
         );
         println!("{}", "-".repeat(90));
 
-        for quote in &app.quotes {
+        for quote in &app.domain.quotes {
             println!(
                 "{:<10} {:<20} {:>12} {:>+10.2} {:>+9.2}% {:>12} {:>12}",
                 quote.symbol,
@@ -969,7 +980,7 @@ fn render_batch_table(app: &App) {
 
 /// Batch output as JSON — for the pipeline-minded.
 fn render_batch_json(app: &App) {
-    match serde_json::to_string_pretty(&app.quotes) {
+    match serde_json::to_string_pretty(&app.domain.quotes) {
         Ok(json) => println!("{}", json),
         Err(e) => eprintln!("JSON serialization error: {}", e),
     }
@@ -987,7 +998,7 @@ fn csv_escape(field: &str) -> String {
 /// Batch output as CSV — for spreadsheet warriors everywhere.
 fn render_batch_csv(app: &App) {
     println!("symbol,name,price,change,change_percent,volume,market_cap");
-    for quote in &app.quotes {
+    for quote in &app.domain.quotes {
         println!(
             "{},{},{:.2},{:+.2},{:+.2},{},{}",
             csv_escape(&quote.symbol),
@@ -1003,6 +1014,7 @@ fn render_batch_csv(app: &App) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     // --- format_price tests ---
@@ -1016,7 +1028,7 @@ mod tests {
 
     #[test]
     fn test_format_price_penny() {
-        assert_eq!(format_price(0.001234), "$0.001234");
+        assert_eq!(format_price(0.001_234), "$0.001234");
         assert_eq!(format_price(0.99), "$0.990000");
     }
 
@@ -1028,7 +1040,7 @@ mod tests {
     #[test]
     fn test_format_price_negative() {
         assert_eq!(format_price(-5.50), "$-5.50");
-        assert_eq!(format_price(-0.001234), "$-0.001234");
+        assert_eq!(format_price(-0.001_234), "$-0.001234");
     }
 
     #[test]
