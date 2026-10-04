@@ -378,7 +378,7 @@ mod tests {
     #[test]
     fn test_price_history_sparkline_empty() {
         let h = PriceHistory::new(5);
-        assert!(h.sparkline_data().is_empty());
+        assert_eq!(h.sparkline_data().len(), 0);
     }
 
     #[test]

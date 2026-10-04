@@ -1190,7 +1190,7 @@ mod tests {
         app.handle_key_event(KeyCode::Char('x'), KeyModifiers::NONE);
         app.handle_key_event(KeyCode::Esc, KeyModifiers::NONE);
         assert_eq!(app.ui.input_mode, InputMode::Normal);
-        assert!(app.ui.input_buffer.is_empty());
+        assert_eq!(app.ui.input_buffer, "");
     }
 
     #[test]
@@ -1258,7 +1258,7 @@ mod tests {
         let mut app = test_app();
         app.handle_key_event(KeyCode::Char('/'), KeyModifiers::NONE);
         assert_eq!(app.ui.input_mode, InputMode::Search);
-        assert!(app.ui.search_filter.is_empty());
+        assert_eq!(app.ui.search_filter, "");
     }
 
     #[test]
@@ -1375,7 +1375,7 @@ mod tests {
             below: Some(100.0), // AAPL is 195, won't trigger
         }];
         app.check_alerts();
-        assert!(app.domain.triggered_alerts.is_empty());
+        assert_eq!(app.domain.triggered_alerts.len(), 0);
     }
 
     #[test]
@@ -1406,7 +1406,7 @@ mod tests {
             below: None,
         }];
         app.check_alerts();
-        assert!(app.domain.triggered_alerts.is_empty());
+        assert_eq!(app.domain.triggered_alerts.len(), 0);
     }
 
     // --- Group cycling tests ---
@@ -2231,7 +2231,7 @@ mod tests {
 
         // Simulate partial: refresh path would set failed, here we set directly for unit
         app.domain.failed_symbols = vec!["MISSING".into()];
-        assert!(!app.domain.failed_symbols.is_empty());
+        assert_ne!(app.domain.failed_symbols.len(), 0);
     }
 
     #[test]
@@ -2242,7 +2242,7 @@ mod tests {
         assert_eq!(app.ui.input_mode, InputMode::Normal);
         assert!(!app.ui.show_help);
         assert_eq!(app.domain.quotes.len(), 2);
-        assert!(!app.domain.symbols.is_empty());
+        assert_ne!(app.domain.symbols.len(), 0);
         // Methods delegate correctly (visible uses both)
         let vis = app.visible_quotes();
         assert_eq!(vis.len(), 2);

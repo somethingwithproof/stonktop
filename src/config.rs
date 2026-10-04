@@ -428,7 +428,7 @@ mod tests {
         let mut tmp = NamedTempFile::new().unwrap();
         write!(tmp, "").unwrap();
         let config = Config::load(&tmp.path().to_path_buf()).unwrap();
-        assert!(config.watchlist.symbols.is_empty());
+        assert_eq!(config.watchlist.symbols.len(), 0);
         assert!(config.holdings.is_empty());
         assert_eq!(config.general.refresh_interval, 5.0);
     }
