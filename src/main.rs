@@ -50,9 +50,9 @@ async fn main() -> Result<()> {
         }
 
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            tokio::fs::create_dir_all(parent).await?;
         }
-        std::fs::write(&path, config::sample_config())?;
+        tokio::fs::write(&path, config::sample_config()).await?;
         println!("Config file written to: {}", path.display());
         std::process::exit(0);
     }

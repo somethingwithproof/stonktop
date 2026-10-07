@@ -220,10 +220,11 @@ async fn test_batch_output_via_binary() {
         .mount(&server)
         .await;
 
-    let output = stonktop_bin()
+    let output = tokio::process::Command::from(stonktop_bin())
         .args(["-s", "AAPL", "-b", "-n", "1"])
         .env("STONKTOP_API_BASE_URL", server.uri())
         .output()
+        .await
         .expect("failed to run stonktop binary");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
