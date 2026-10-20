@@ -31,7 +31,7 @@ Formatting follows `rustfmt.toml` and clippy warnings are treated as errors.
 
 ## Tests
 
-When you add major functionality or fix a bug, add tests for it in the same
+When you add new functionality or fix a bug, add tests for it in the same
 pull request. Unit tests live next to the code in `src/`, and integration and
 end-to-end tests live in `tests/`. A change that cannot be tested should say
 why in the pull request description.
