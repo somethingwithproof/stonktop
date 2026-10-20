@@ -9,10 +9,6 @@ on:
       - ".github/dependabot.yml"
   pull_request:
     branches: [main, master]
-    paths-ignore:
-      - "**/*.md"
-      - "LICENSE"
-      - ".github/dependabot.yml"
 
 concurrency:
   group: ci-${{ github.ref }}
