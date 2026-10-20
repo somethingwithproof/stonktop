@@ -5,7 +5,7 @@
 # Used for integration and "live" E2E testing in Docker (reproducible packaged app).
 
 # Build stage - use MSRV base for consistency with project
-FROM rust:1.89-slim-bookworm AS builder
+FROM rust:1.89-slim-bookworm@sha256:d7fc7de78bb8c1469933aeecbf801314d30d7d6e9f0578bba4cfa285bfa37fe6 AS builder
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ COPY src ./src
 RUN cargo build --release --locked
 
 # Runtime stage - minimal
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 
 # Runtime deps: ca-certs for HTTPS to Yahoo, basic shell for debugging if needed
 RUN apt-get update && apt-get install -y \
