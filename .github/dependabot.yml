@@ -46,3 +46,10 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      # The build image must match the MSRV in Cargo.toml, so only digest
+      # refreshes of the pinned tag are wanted, not newer Rust versions.
+      - dependency-name: "rust"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
