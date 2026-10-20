@@ -1,0 +1,24 @@
+[package]
+name = "stonktop-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.stonktop]
+path = ".."
+
+# Keep the fuzz crate out of the main crate's build, lockfile and audit.
+[workspace]
+
+[[bin]]
+name = "config_load"
+path = "fuzz_targets/config_load.rs"
+test = false
+doc = false
+bench = false
