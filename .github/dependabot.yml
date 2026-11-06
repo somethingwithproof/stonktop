@@ -1,6 +1,8 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
+    cooldown:
+      default-days: 7
     directory: "/"
     schedule:
       interval: "weekly"
@@ -20,6 +22,8 @@ updates:
         dependency-type: "development"
 
   - package-ecosystem: "github-actions"
+    cooldown:
+      default-days: 7
     directory: "/"
     schedule:
       interval: "weekly"
@@ -39,6 +43,8 @@ updates:
           - "patch"
 
   - package-ecosystem: "docker"
+    cooldown:
+      default-days: 7
     directory: "/"
     schedule:
       interval: "weekly"
