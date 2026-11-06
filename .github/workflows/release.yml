@@ -151,8 +151,10 @@ jobs:
           persist-credentials: false
 
       - name: Generate release notes
+        env:
+          RELEASE_VERSION: ${{ needs.validate-version.outputs.version }}
         run: |
-          VERSION="v${{ needs.validate-version.outputs.version }}"
+          VERSION="v${RELEASE_VERSION}"
           if [ -f CHANGELOG.md ]; then
             sed -n "/^## \[${VERSION#v}\]/,/^## \[/p" CHANGELOG.md | head -n -1 > release_notes.md || true
           fi
@@ -259,8 +261,10 @@ jobs:
 
       - name: Create archive (Unix)
         if: matrix.os != 'windows-latest'
+        env:
+          RELEASE_VERSION: ${{ needs.validate-version.outputs.version }}
         run: |
-          VERSION="v${{ needs.validate-version.outputs.version }}"
+          VERSION="v${RELEASE_VERSION}"
           ARCHIVE_NAME="${{ env.BINARY_NAME }}-${VERSION}-${{ matrix.target }}"
           mkdir -p "dist/${ARCHIVE_NAME}"
           cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}" "dist/${ARCHIVE_NAME}/"
@@ -272,8 +276,10 @@ jobs:
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.validate-version.outputs.version }}
         run: |
-          $VERSION = "v${{ needs.validate-version.outputs.version }}"
+          $VERSION = "v${env:RELEASE_VERSION}"
           $ARCHIVE_NAME = "${{ env.BINARY_NAME }}-${VERSION}-${{ matrix.target }}"
           New-Item -ItemType Directory -Force -Path "dist/${ARCHIVE_NAME}"
           Copy-Item "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe" "dist/${ARCHIVE_NAME}/"
