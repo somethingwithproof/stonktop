@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! End-to-end tests for the stonktop pipeline.
 //!
 //! These tests exercise the full stack from App construction through API

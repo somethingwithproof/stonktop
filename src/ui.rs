@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Terminal user interface with ratatui.
 //!
 //! Making financial data look pretty since 2024.

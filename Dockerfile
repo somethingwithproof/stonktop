@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 # syntax=docker/dockerfile:1
 
 # Multi-stage build for stonktop TUI/CLI

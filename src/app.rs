@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Application state and logic.
 //!
 //! Where we keep track of your hopes, dreams, and unrealized losses.

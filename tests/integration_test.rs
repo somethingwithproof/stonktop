@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Integration tests for stonktop CLI.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]

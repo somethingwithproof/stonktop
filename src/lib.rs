@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 // Public surface for integration and e2e tests.
 // The binary entry point (main.rs) owns the TUI plumbing; this crate exposes
 // only the modules needed for testing without pulling in the terminal setup.

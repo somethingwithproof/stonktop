@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Data models for stock and cryptocurrency quotes.
 //!
 //! Structs that hold the numbers you'll obsessively refresh.
