@@ -1,4 +1,6 @@
 #![no_main]
+// SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
 
 use libfuzzer_sys::fuzz_target;
 use std::path::PathBuf;

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Yahoo Finance API client for fetching stock and cryptocurrency quotes.
 //!
 //! Because checking your portfolio every 5 seconds is totally healthy behavior.

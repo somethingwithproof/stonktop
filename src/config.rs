@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Configuration file handling with TOML support.
 //!
 //! Because hardcoding your portfolio would be too easy.

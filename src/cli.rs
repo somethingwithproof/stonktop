@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Command-line interface with top-like options.
 //!
 //! All the flags you need to customize your financial anxiety experience.

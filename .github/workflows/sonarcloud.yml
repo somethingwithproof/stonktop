@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 name: SonarQube Cloud
 
 # Automatic Analysis does not support Rust, so analysis runs here.

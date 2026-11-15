@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+// SPDX-License-Identifier: MIT
+
 //! Stonktop - A top-like terminal UI for stock and crypto prices.
 //!
 //! "Stonks only go up" - Famous last words
