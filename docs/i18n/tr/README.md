@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Ön Koşullar
 
-- **Rust**: 1.88 veya üzeri sürüm (MSRV)
+- **Rust**: 1.89 veya üzeri sürüm (MSRV)
 - **Cargo**: Rust kurulumuyla birlikte gelir
 
 ## Kurulum
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Veya yapılandırmayı varsayılan konuma yerleştirin:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop, görüntüleme dilini `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES` ve `LAN
 | `s` | Sıralama alanını değiştir |
 | `r` | Sıralama düzenini tersine çevir |
 | `1-7` | Sütuna göre sırala |
-| `Enter`, `d` | Seçili sembol için ayrıntı penceresini göster |
+| `Enter` | Seçili sembol için ayrıntı penceresini göster |
 | `/` | Sembolleri ara/filtrele |
 | `a` | İzleme listesine sembol ekle |
-| `x` | Seçili sembolü kaldır |
+| `d` | Seçili sembolü kaldır |
 | `S` | Sparkline grafikleri yan panelini aç/kapat |
 | `e` | İzleme listesini JSON olarak dışa aktar |
 | `H` | Varlık görünümünü aç/kapat |

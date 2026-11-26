@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## 环境要求
 
-- **Rust**：1.88 及以上版本（MSRV）
+- **Rust**：1.89 及以上版本（MSRV）
 - **Cargo**：随 Rust 安装包自动附带
 
 ## 安装
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # 或将配置文件放置在默认位置：
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop 会从 `STONKTOP_LANG`、`LC_ALL`、`LC_MESSAGES` 和 `LANG` 自动检�
 | `s` | 切换排序字段 |
 | `r` | 反转排序顺序 |
 | `1-7` | 按指定列排序 |
-| `Enter`, `d` | 显示所选代码的详情弹窗 |
+| `Enter` | 显示所选代码的详情弹窗 |
 | `/` | 搜索/筛选代码 |
 | `a` | 向自选列表添加代码 |
-| `x` | 移除所选代码 |
+| `d` | 移除所选代码 |
 | `S` | 切换迷你走势图侧边栏 |
 | `e` | 将自选列表导出为 JSON |
 | `H` | 切换持仓视图 |

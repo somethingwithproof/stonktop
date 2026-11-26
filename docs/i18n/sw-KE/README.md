@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Mahitaji ya Awali
 
-- **Rust**: Toleo la 1.88 au la juu zaidi (MSRV)
+- **Rust**: Toleo la 1.89 au la juu zaidi (MSRV)
 - **Cargo**: Inajumuishwa katika usakinishaji wa Rust
 
 ## Usakinishaji
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Au weka faili ya usanidi katika eneo la chaguo-msingi:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop hutambua lugha ya kuonyesha kutoka `STONKTOP_LANG`, `LC_ALL`, `LC_MESSA
 | `s` | Badilisha sehemu ya kupanga |
 | `r` | Geuza mpangilio wa kupanga |
 | `1-7` | Panga kwa safuwima |
-| `Enter`, `d` | Onyesha dirisha la maelezo ya alama iliyochaguliwa |
+| `Enter` | Onyesha dirisha la maelezo ya alama iliyochaguliwa |
 | `/` | Tafuta/chuja alama |
 | `a` | Ongeza alama kwenye orodha ya ufuatiliaji |
-| `x` | Ondoa alama iliyochaguliwa |
+| `d` | Ondoa alama iliyochaguliwa |
 | `S` | Washa/zima upau wa pembeni wa chati za sparkline |
 | `e` | Hamisha orodha ya ufuatiliaji kwenda JSON |
 | `H` | Washa/zima mwonekano wa mali |

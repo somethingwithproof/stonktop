@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Izinto Ezifunekayo Ngaphambili
 
-- **Rust**: Inguqulelo 1.88 okanye ngaphezulu (MSRV)
+- **Rust**: Inguqulelo 1.89 okanye ngaphezulu (MSRV)
 - **Cargo**: Ibandakanyiwe kufakelo lwe-Rust
 
 ## Ufakelo
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Okanye beka ifayile yoqwalaselo kwindawo emiselweyo:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ I-Stonktop ibona ulwimi lokubonisa kwi-`STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`,
 | `s` | Tshintsha ummandla wokuhlela |
 | `r` | Guqula ulandelelwano lokuhlela |
 | `1-7` | Hlela ngekholam |
-| `Enter`, `d` | Bonisa ifestile yeenkcukacha yophawu olukhethiweyo |
+| `Enter` | Bonisa ifestile yeenkcukacha yophawu olukhethiweyo |
 | `/` | Khangela/coca iimpawu |
 | `a` | Yongeza uphawu kuluhlu lokulandelela |
-| `x` | Susa uphawu olukhethiweyo |
+| `d` | Susa uphawu olukhethiweyo |
 | `S` | Vula/vala ibha esecaleni yeetshathi ze-sparkline |
 | `e` | Thumela ngaphandle uluhlu lokulandelela kwi-JSON |
 | `H` | Vula/vala umboniso wezabelo |

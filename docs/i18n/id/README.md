@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Prasyarat
 
-- **Rust**: Versi 1.88 atau lebih tinggi (MSRV)
+- **Rust**: Versi 1.89 atau lebih tinggi (MSRV)
 - **Cargo**: Sudah termasuk dalam instalasi Rust
 
 ## Instalasi
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Atau letakkan berkas konfigurasi di lokasi bawaan:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop mendeteksi bahasa tampilan dari `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES
 | `s` | Ganti kolom pengurutan |
 | `r` | Balikkan urutan pengurutan |
 | `1-7` | Urutkan berdasarkan kolom |
-| `Enter`, `d` | Tampilkan jendela detail untuk simbol terpilih |
+| `Enter` | Tampilkan jendela detail untuk simbol terpilih |
 | `/` | Cari/saring simbol |
 | `a` | Tambahkan simbol ke daftar pantauan |
-| `x` | Hapus simbol terpilih |
+| `d` | Hapus simbol terpilih |
 | `S` | Buka/tutup bilah sisi grafik sparkline |
 | `e` | Ekspor daftar pantauan ke JSON |
 | `H` | Buka/tutup tampilan kepemilikan |

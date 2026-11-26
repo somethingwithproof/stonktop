@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## पूर्वापेक्षाएँ
 
-- **Rust**: संस्करण 1.88 या उच्चतर (न्यूनतम समर्थित Rust संस्करण - MSRV)
+- **Rust**: संस्करण 1.89 या उच्चतर (न्यूनतम समर्थित Rust संस्करण - MSRV)
 - **Cargo**: Rust इंस्टॉलेशन के साथ सम्मिलित
 
 ## इंस्टॉलेशन
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # या कॉन्फ़िगरेशन फ़ाइल को डिफ़ॉल्ट स्थान पर रखें:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES` और `LANG` से प्र
 | `s` | क्रमबद्ध फ़ील्ड बदलें |
 | `r` | क्रमबद्ध अनुक्रम उलटें |
 | `1-7` | कॉलम के अनुसार क्रमबद्ध करें |
-| `Enter`, `d` | चयनित प्रतीक के लिए विवरण पॉपअप दिखाएँ |
+| `Enter` | चयनित प्रतीक के लिए विवरण पॉपअप दिखाएँ |
 | `/` | प्रतीक खोजें/फ़िल्टर करें |
 | `a` | वॉचलिस्ट में प्रतीक जोड़ें |
-| `x` | चयनित प्रतीक हटाएँ |
+| `d` | चयनित प्रतीक हटाएँ |
 | `S` | स्पार्कलाइन चार्ट साइडबार टॉगल करें |
 | `e` | वॉचलिस्ट को JSON में निर्यात करें |
 | `H` | होल्डिंग्स दृश्य टॉगल करें |

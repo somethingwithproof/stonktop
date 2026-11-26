@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## 動作要件
 
-- **Rust**: バージョン 1.88 以上（MSRV）
+- **Rust**: バージョン 1.89 以上（MSRV）
 - **Cargo**: Rust のインストールに同梱
 
 ## インストール
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # またはデフォルトのパスに設定ファイルを配置:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop は `STONKTOP_LANG`、`LC_ALL`、`LC_MESSAGES`、`LANG` の各環境変
 | `s` | ソート項目を切り替え |
 | `r` | ソート順を反転 |
 | `1-7` | 列番号でソート |
-| `Enter`, `d` | 選択中のシンボルの詳細ポップアップを表示 |
+| `Enter` | 選択中のシンボルの詳細ポップアップを表示 |
 | `/` | シンボルを検索／フィルタリング |
 | `a` | ウォッチリストにシンボルを追加 |
-| `x` | 選択中のシンボルを削除 |
+| `d` | 選択中のシンボルを削除 |
 | `S` | スパークラインチャートのサイドバー表示を切り替え |
 | `e` | ウォッチリストを JSON にエクスポート |
 | `H` | 保有資産表示を切り替え |

@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Ihe Ndị A Chọrọ Mbụ
 
-- **Rust**: Ụdị 1.88 ma ọ bụ karịa (MSRV)
+- **Rust**: Ụdị 1.89 ma ọ bụ karịa (MSRV)
 - **Cargo**: Etinyere ya na nwụnye Rust
 
 ## Nwụnye
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Ma ọ bụ tinye faịlụ nhazi n'ebe ndabara:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop na-achọpụta asụsụ ngosi site na `STONKTOP_LANG`, `LC_ALL`, `LC_
 | `s` | Gbanwee mpaghara nhazi usoro |
 | `r` | Tụgharịa usoro nhazi |
 | `1-7` | Hazie site na kọlụm |
-| `Enter`, `d` | Gosipụta windo nkọwa zuru ezu maka akara a họọrọ |
+| `Enter` | Gosipụta windo nkọwa zuru ezu maka akara a họọrọ |
 | `/` | Chọọ ma ọ bụ zacha akara |
 | `a` | Tinye akara na ndepụta nleba anya |
-| `x` | Wepụ akara a họọrọ |
+| `d` | Wepụ akara a họọrọ |
 | `S` | Gbanwee ngosi ogige akụkụ chaatị sparkline |
 | `e` | Bupụ ndepụta nleba anya gaa na JSON |
 | `H` | Gbanwee nlele ngwa ahịa |

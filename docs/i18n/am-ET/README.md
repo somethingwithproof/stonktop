@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## ቅድመ ሁኔታዎች
 
-- **Rust**፦ ስሪት 1.88 ወይም ከዚያ በላይ (ዝቅተኛው የሚደገፍ የ Rust ስሪት)
+- **Rust**፦ ስሪት 1.89 ወይም ከዚያ በላይ (ዝቅተኛው የሚደገፍ የ Rust ስሪት)
 - **Cargo**፦ ከ Rust ጭነት ጋር አብሮ ይመጣል
 
 ## መጫን
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # ወይም የማዋቀሪያ ፋይሉን በነባሪ ቦታ ላይ ያስቀምጡ፦
-# - Linux/macOS፦ ~/.config/stonktop/config.toml
+# - Linux፦ ~/.config/stonktop/config.toml
+# - macOS፦ ~/Library/Application Support/stonktop/config.toml
 # - Windows፦ %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop የማሳያ ቋንቋውን ከ `STONKTOP_LANG`፣ `LC_ALL`፣ `LC_MES
 | `s` | የመደርደሪያ መስኮችን ቀያይር |
 | `r` | የመደርደሪያ ቅደም ተከተልን ገልብጥ |
 | `1-7` | በዓምድ ደርድር |
-| `Enter`, `d` | ለተመረጠው ምልክት የዝርዝር መስኮት አሳይ |
+| `Enter` | ለተመረጠው ምልክት የዝርዝር መስኮት አሳይ |
 | `/` | ምልክቶችን ፈልግ/አጣራ |
 | `a` | ወደ ክትትል ዝርዝር ምልክት ጨምር |
-| `x` | የተመረጠውን ምልክት አስወግድ |
+| `d` | የተመረጠውን ምልክት አስወግድ |
 | `S` | የስፓርክላይን ገበታ የጎን አሞሌን አብራ/አጥፋ |
 | `e` | የክትትል ዝርዝሩን ወደ JSON ላክ |
 | `H` | የንብረት ይዞታ እይታን አብራ/አጥፋ |

@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Fepetra Ilaina Mialoha
 
-- **Rust**: Dikan-teny 1.88 na ambony kokoa (MSRV)
+- **Rust**: Dikan-teny 1.89 na ambony kokoa (MSRV)
 - **Cargo**: Miaraka amin'ny fametrahana Rust
 
 ## Fametrahana
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Na apetraho eo amin'ny toerana mahazatra ny rakitra:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Hitan'ny Stonktop ho azy ny fiteny aseho avy amin'ny `STONKTOP_LANG`, `LC_ALL`, 
 | `s` | Manova ny sahan'ny fanasokajiana |
 | `r` | Mamadika ny filaharan'ny fanasokajiana |
 | `1-7` | Manasokajy araka ny tsanganana |
-| `Enter`, `d` | Mampiseho varavarankely misy antsipiriany momba ny mari-pamantarana voafidy |
+| `Enter` | Mampiseho varavarankely misy antsipiriany momba ny mari-pamantarana voafidy |
 | `/` | Mikaroka / manivana mari-pamantarana |
 | `a` | Manampy mari-pamantarana amin'ny lisitra arahina |
-| `x` | Manala ny mari-pamantarana voafidy |
+| `d` | Manala ny mari-pamantarana voafidy |
 | `S` | Mampiseho na manafina ny sisiny misy tabilao sparkline |
 | `e` | Manondrana ny lisitra arahina ho JSON |
 | `H` | Manova ny fijery pôrtafôlio |

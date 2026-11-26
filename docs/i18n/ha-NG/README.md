@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Abubuwan da ake Buƙata
 
-- **Rust**: Sigar 1.88 ko sama da haka (MSRV)
+- **Rust**: Sigar 1.89 ko sama da haka (MSRV)
 - **Cargo**: Yana zuwa tare da shigar da Rust
 
 ## Shigarwa
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Ko ajiye fayil ɗin saiti a wurin da aka tanada:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop yana gano harshen nuni ta atomatik daga `STONKTOP_LANG`, `LC_ALL`, `LC_
 | `s` | Sauya filin jeri |
 | `r` | Juya tsarin jeri |
 | `1-7` | Jera bisa ginshiƙi |
-| `Enter`, `d` | Nuna cikakken bayanin alamar da aka zaɓa |
+| `Enter` | Nuna cikakken bayanin alamar da aka zaɓa |
 | `/` | Bincika ko tace alamomi |
 | `a` | Ƙara alama a jerin sa ido |
-| `x` | Cire alamar da aka zaɓa |
+| `d` | Cire alamar da aka zaɓa |
 | `S` | Nuna ko ɓoye gefen jadawalin sparkline |
 | `e` | Fitar da jerin sa ido zuwa JSON |
 | `H` | Sauya zuwa kallon kadarori |

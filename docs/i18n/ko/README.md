@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## 사전 요구 사항
 
-- **Rust**: 버전 1.88 이상(MSRV)
+- **Rust**: 버전 1.89 이상(MSRV)
 - **Cargo**: Rust 설치 시 함께 포함됨
 
 ## 설치
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # 또는 기본 위치에 설정 파일 배치:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop은 `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`, `LANG` 환경 변수에서
 | `s` | 정렬 필드 순환 |
 | `r` | 정렬 순서 반전 |
 | `1-7` | 열 기준 정렬 |
-| `Enter`, `d` | 선택한 심볼의 상세 팝업 표시 |
+| `Enter` | 선택한 심볼의 상세 팝업 표시 |
 | `/` | 심볼 검색/필터링 |
 | `a` | 관심 목록에 심볼 추가 |
-| `x` | 선택한 심볼 제거 |
+| `d` | 선택한 심볼 제거 |
 | `S` | 스파크라인 차트 사이드바 전환 |
 | `e` | 관심 목록을 JSON으로 내보내기 |
 | `H` | 보유 자산 보기 전환 |

@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Förutsättningar
 
-- **Rust**: version 1.88 eller senare (MSRV)
+- **Rust**: version 1.89 eller senare (MSRV)
 - **Cargo**: ingår i Rust-installationen
 
 ## Installation
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Eller placera konfigurationen på standardplatsen:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop identifierar visningsspråket från `STONKTOP_LANG`, `LC_ALL`, `LC_MESS
 | `s` | Växla sorteringsfält |
 | `r` | Vänd sorteringsordning |
 | `1-7` | Sortera efter kolumn |
-| `Enter`, `d` | Visa detaljdialog för vald symbol |
+| `Enter` | Visa detaljdialog för vald symbol |
 | `/` | Sök/filtrera symboler |
 | `a` | Lägg till en symbol i bevakningslistan |
-| `x` | Ta bort vald symbol |
+| `d` | Ta bort vald symbol |
 | `S` | Visa/dölj sidofältet för sparkline-diagram |
 | `e` | Exportera bevakningslista till JSON |
 | `H` | Växla innehavsvy |

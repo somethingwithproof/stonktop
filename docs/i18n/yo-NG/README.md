@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Àwọn Ohun Tí A Nílò Tẹ́lẹ̀
 
-- **Rust**: Ẹ̀yà 1.88 tàbí jù bẹ́ẹ̀ lọ (MSRV)
+- **Rust**: Ẹ̀yà 1.89 tàbí jù bẹ́ẹ̀ lọ (MSRV)
 - **Cargo**: Ó wà nínú ìfisọ́rí Rust
 
 ## Ìfisọ́rí
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Tàbí fi fáìlì ìṣètò sí ibi àkọ́yàn:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop ń ṣàwárí èdè ìfihàn láti `STONKTOP_LANG`, `LC_ALL`, `LC_MESS
 | `s` | Yí pápá ìtòlẹ́sẹẹsẹ padà |
 | `r` | Yí ètò ìtòlẹ́sẹẹsẹ padà |
 | `1-7` | Tò nípa òpó |
-| `Enter`, `d` | Fi fèrèsé àlàyé kíkún hàn fún àmì tí a yàn |
+| `Enter` | Fi fèrèsé àlàyé kíkún hàn fún àmì tí a yàn |
 | `/` | Wá/ṣẹ́ àwọn àmì |
 | `a` | Fi àmì kún àtòjọ àbójútó |
-| `x` | Yọ àmì tí a yàn kúrò |
+| `d` | Yọ àmì tí a yàn kúrò |
 | `S` | Tan/pa ẹ̀gbẹ́ ojú-ìbòjú fún àwọn àtẹ sparkline |
 | `e` | Kó àtòjọ àbójútó jáde sí JSON |
 | `H` | Tan/pa ìwòye ohun-ìní |

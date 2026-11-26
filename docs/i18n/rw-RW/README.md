@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Ibisabwa Mbere
 
-- **Rust**: Verisiyo 1.88 cyangwa irenzeho (MSRV)
+- **Rust**: Verisiyo 1.89 cyangwa irenzeho (MSRV)
 - **Cargo**: Izanana n'ishyirwaho rya Rust
 
 ## Ishyirwaho (Installation)
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Cyangwa shyira dosiye aho isanzwe iba:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop itahura ururimi rugaragara ikuye kuri `STONKTOP_LANG`, `LC_ALL`, `LC_ME
 | `s` | Hinduranya icyiciro cyo gutondeka |
 | `r` | Hindura icyerekezo cyo gutondeka |
 | `1-7` | Tondeka ukurikije inkingi |
-| `Enter`, `d` | Garagaza idirishya ry'amakuru arambuye y'ikimenyetso cyahiswemo |
+| `Enter` | Garagaza idirishya ry'amakuru arambuye y'ikimenyetso cyahiswemo |
 | `/` | Shakisha cyangwa yungurura ibimenyetso |
 | `a` | Ongera ikimenyetso ku rutonde rw'ibikurikiranwa |
-| `x` | Kuraho ikimenyetso cyahiswemo |
+| `d` | Kuraho ikimenyetso cyahiswemo |
 | `S` | Garagaza cyangwa hisha agace k'imbonerahamwe ntoya za sparkline |
 | `e` | Ohereza urutonde rw'ibikurikiranwa muri JSON |
 | `H` | Hindura imigaragarire y'umutungo |

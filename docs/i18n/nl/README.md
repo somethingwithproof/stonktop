@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Vereisten
 
-- **Rust**: Versie 1.88 of hoger (MSRV)
+- **Rust**: Versie 1.89 of hoger (MSRV)
 - **Cargo**: Meegeleverd met de Rust-installatie
 
 ## Installatie
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Of plaats het configuratiebestand op de standaardlocatie:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop detecteert de weergavetaal aan de hand van `STONKTOP_LANG`, `LC_ALL`, `
 | `s` | Wisselen van sorteerveld |
 | `r` | Sorteervolgorde omkeren |
 | `1-7` | Sorteren op kolom |
-| `Enter`, `d` | Detailvenster tonen voor het geselecteerde symbool |
+| `Enter` | Detailvenster tonen voor het geselecteerde symbool |
 | `/` | Symbolen zoeken/filteren |
 | `a` | Een symbool toevoegen aan de volglijst |
-| `x` | Geselecteerd symbool verwijderen |
+| `d` | Geselecteerd symbool verwijderen |
 | `S` | Zijbalk met sparkline-grafieken tonen/verbergen |
 | `e` | Volglijst exporteren naar JSON |
 | `H` | Positiesweergave tonen/verbergen |

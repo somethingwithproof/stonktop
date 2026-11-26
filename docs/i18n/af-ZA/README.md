@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Voorvereistes
 
-- **Rust**: Weergawe 1.88 of hoër (MSRV)
+- **Rust**: Weergawe 1.89 of hoër (MSRV)
 - **Cargo**: Ingesluit by die Rust-installasie
 
 ## Installasie
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Of plaas die konfigurasielêer op die verstekligging:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop bespeur die vertoontaal vanaf `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES` 
 | `s` | Wissel deur sorteervelde |
 | `r` | Keer sorteervolgorde om |
 | `1-7` | Sorteer volgens kolom |
-| `Enter`, `d` | Vertoon detail-opwipvenster vir gekose simbool |
+| `Enter` | Vertoon detail-opwipvenster vir gekose simbool |
 | `/` | Soek/filter simbole |
 | `a` | Voeg 'n simbool by dophoulys |
-| `x` | Verwyder gekose simbool |
+| `d` | Verwyder gekose simbool |
 | `S` | Wissel vonklyngrafieke-sybalk |
 | `e` | Voer dophoulys uit na JSON |
 | `H` | Wissel besit-aansig |

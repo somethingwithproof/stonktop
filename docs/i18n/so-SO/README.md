@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Shuruudaha Hore
 
-- **Rust**: Nooca 1.88 ama ka sarreeya (MSRV)
+- **Rust**: Nooca 1.89 ama ka sarreeya (MSRV)
 - **Cargo**: Waxay la socotaa rakibidda Rust
 
 ## Rakibidda
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Ama dhig faylka habaynta goobta caadiga ah:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop waxa ay si otomaatig ah uga ogaataa luqadda muujinta doorsoomayaasha `S
 | `s` | Beddel goobta kala-soocidda |
 | `r` | U rogo habka kala-soocidda |
 | `1-7` | U kala saar tiirka |
-| `Enter`, `d` | Muuji daaqadda faahfaahinta ee calaamadda la doortay |
+| `Enter` | Muuji daaqadda faahfaahinta ee calaamadda la doortay |
 | `/` | Raadi/shaandhee calaamadaha |
 | `a` | Ku dar calaamad liiska la socodka |
-| `x` | Ka saar calaamadda la doortay |
+| `d` | Ka saar calaamadda la doortay |
 | `S` | Daar/dami dhinaca shaxannada sparkline |
 | `e` | U dhoofi liiska la socodka qaabka JSON |
 | `H` | Daar/dami aragtida hantida |

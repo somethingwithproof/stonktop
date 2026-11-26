@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Izidingo Zangaphambili
 
-- **Rust**: Inguqulo 1.88 noma ngaphezulu (MSRV)
+- **Rust**: Inguqulo 1.89 noma ngaphezulu (MSRV)
 - **Cargo**: Ifakiwe ekufakweni kwe-Rust
 
 ## Ukufaka
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Noma beka ifayela lokucushwa endaweni ezenzakalelayo:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ I-Stonktop ithola ulimi lokubonisa ku-`STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`, 
 | `s` | Shintsha inkambu yokuhlunga |
 | `r` | Guqula uhlelo lokuhlunga |
 | `1-7` | Hlunga ngekholomu |
-| `Enter`, `d` | Bonisa iwindi lemininingwane yophawu olukhethiwe |
+| `Enter` | Bonisa iwindi lemininingwane yophawu olukhethiwe |
 | `/` | Sesha/hlunga izimpawu |
 | `a` | Engeza uphawu ohlwini lokuqapha |
-| `x` | Susa uphawu olukhethiwe |
+| `d` | Susa uphawu olukhethiwe |
 | `S` | Vula/vala ibha eseceleni yamashadi e-sparkline |
 | `e` | Thumela ngaphandle uhlu lokuqapha kwi-JSON |
 | `H` | Vula/vala ukubuka kwamasheya |

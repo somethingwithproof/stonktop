@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Mga Kinakailangan
 
-- **Rust**: Bersyon 1.88 o mas bago (MSRV)
+- **Rust**: Bersyon 1.89 o mas bago (MSRV)
 - **Cargo**: Kasama sa pag-install ng Rust
 
 ## Pag-install
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # O ilagay ang konpigurasyon sa default na lokasyon:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Awtomatikong natutukoy ng Stonktop ang wika ng display mula sa `STONKTOP_LANG`, 
 | `s` | Magpalit-palit ng field sa pag-uuri |
 | `r` | Baliktarin ang pagkakasunod-sunod ng pag-uuri |
 | `1-7` | Mag-uri ayon sa kolum |
-| `Enter`, `d` | Ipakita ang popup ng detalye para sa napiling simbolo |
+| `Enter` | Ipakita ang popup ng detalye para sa napiling simbolo |
 | `/` | Maghanap/mag-filter ng mga simbolo |
 | `a` | Magdagdag ng simbolo sa watchlist |
-| `x` | Alisin ang napiling simbolo |
+| `d` | Alisin ang napiling simbolo |
 | `S` | I-toggle ang sidebar ng mga sparkline chart |
 | `e` | I-export ang watchlist sa JSON |
 | `H` | I-toggle ang view ng mga holdings |

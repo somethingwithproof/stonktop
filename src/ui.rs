@@ -1340,4 +1340,288 @@ mod tests {
             assert_eq!(text_alignment(locale), expected);
         }
     }
+
+    // --- Full TUI rendering tests with TestBackend ---
+
+    fn render_to_string(app: &App) -> String {
+        let backend = ratatui::backend::TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal.draw(|f| render(f, app)).unwrap();
+        let buf = terminal.backend().buffer();
+        let mut out = String::new();
+        for y in 0..buf.area.height {
+            for x in 0..buf.area.width {
+                out.push_str(buf[(x, y)].symbol());
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    fn sample_render_app(locale: AppLocale) -> App {
+        use crate::app::App;
+        use crate::cli::Args;
+        use crate::config::Config;
+        use crate::models::{Holding, MarketState, PriceHistory, Quote, QuoteType};
+        use clap::Parser;
+        use std::time::Instant;
+
+        let args = Args::parse_from(["stonktop", "-s", "AAPL,GOOGL,MSFT", "--lang", locale.code()]);
+        let mut config = Config::default();
+        config.groups.insert(
+            "tech".to_string(),
+            vec!["AAPL".to_string(), "MSFT".to_string()],
+        );
+        let mut app = App::with_base_url(&args, &config, "http://127.0.0.1:1".to_string()).unwrap();
+        app.ui.locale = locale;
+        app.last_refresh = Some(Instant::now());
+        app.iteration = 3;
+        app.domain.quotes = vec![
+            Quote {
+                symbol: "AAPL".into(),
+                name: "Apple Inc.".into(),
+                price: 195.50,
+                change: 2.50,
+                change_percent: 1.30,
+                previous_close: 193.00,
+                open: 193.50,
+                day_high: 196.20,
+                day_low: 192.80,
+                year_high: 210.00,
+                year_low: 165.00,
+                volume: 45_200_000,
+                avg_volume: 50_000_000,
+                market_cap: Some(3_000_000_000_000),
+                currency: "USD".into(),
+                exchange: "NMS".into(),
+                quote_type: QuoteType::Equity,
+                market_state: MarketState::Regular,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "GOOGL".into(),
+                name: "Alphabet Inc.".into(),
+                price: 140.00,
+                change: -1.75,
+                change_percent: -1.23,
+                previous_close: 141.75,
+                open: 141.00,
+                day_high: 142.00,
+                day_low: 139.50,
+                year_high: 155.00,
+                year_low: 120.00,
+                volume: 18_300_000,
+                avg_volume: 20_000_000,
+                market_cap: Some(1_760_000_000_000),
+                currency: "USD".into(),
+                exchange: "NMS".into(),
+                quote_type: QuoteType::Equity,
+                market_state: MarketState::Closed,
+                ..Quote::default()
+            },
+            Quote {
+                symbol: "MSFT".into(),
+                name: "Microsoft Corporation".into(),
+                price: 380.00,
+                change: 0.0,
+                change_percent: 0.0,
+                previous_close: 380.00,
+                open: 0.0,
+                day_high: 0.0,
+                day_low: 0.0,
+                year_high: 0.0,
+                year_low: 0.0,
+                volume: 22_000_000,
+                avg_volume: 25_000_000,
+                market_cap: None,
+                currency: "USD".into(),
+                exchange: "NMS".into(),
+                quote_type: QuoteType::Equity,
+                market_state: MarketState::Closed,
+                ..Quote::default()
+            },
+        ];
+
+        let mut aapl_hist = PriceHistory::new(10);
+        aapl_hist.push(190.0);
+        aapl_hist.push(193.0);
+        aapl_hist.push(195.5);
+        app.domain.price_history.insert("AAPL".into(), aapl_hist);
+
+        let mut googl_hist = PriceHistory::new(10);
+        googl_hist.push(143.0);
+        googl_hist.push(141.0);
+        googl_hist.push(140.0);
+        app.domain.price_history.insert("GOOGL".into(), googl_hist);
+
+        app.domain.holdings.insert(
+            "AAPL".into(),
+            Holding {
+                symbol: "AAPL".into(),
+                quantity: 10.0,
+                cost_basis: 150.0,
+            },
+        );
+        app.domain.holdings.insert(
+            "GOOGL".into(),
+            Holding {
+                symbol: "GOOGL".into(),
+                quantity: 5.0,
+                cost_basis: 160.0,
+            },
+        );
+
+        app
+    }
+
+    #[test]
+    fn test_render_quotes_table_modes_and_features() {
+        use crate::app::InputMode;
+        use crate::cli::ColorMode;
+        use crate::models::{MarketState, SortDirection};
+
+        // Base quotes table with open market, fundamentals, verbose, sparklines, and group filter
+        let mut app = sample_render_app(AppLocale::En);
+        app.ui.show_fundamentals = true;
+        app.ui.verbose = true;
+        app.ui.show_sparklines = true;
+        app.domain.sort_direction = SortDirection::Ascending;
+        let out = render_to_string(&app);
+        assert!(out.contains("STONKTOP"));
+        assert!(out.contains("AAPL"));
+        assert!(out.contains("GOOGL"));
+        assert!(out.contains("OPEN"));
+        assert!(out.contains("TREND"));
+        assert!(out.contains(AppLocale::En.catalog().market_open_badge));
+
+        // Closed market, descending sort, ColorMode::Never, active group filter
+        for q in &mut app.domain.quotes {
+            q.market_state = MarketState::Closed;
+        }
+        app.ui.show_sparklines = false;
+        app.ui.color_mode = ColorMode::Never;
+        app.domain.sort_direction = SortDirection::Descending;
+        app.domain.active_group = 1;
+        let out_closed = render_to_string(&app);
+        assert!(out_closed.contains(AppLocale::En.catalog().market_closed_badge));
+        assert!(out_closed.contains("tech"));
+
+        // Search input mode
+        app.domain.active_group = 0;
+        app.ui.input_mode = InputMode::Search;
+        app.ui.search_filter = "AAPL".to_string();
+        let out_search = render_to_string(&app);
+        assert!(out_search.contains("/AAPL"));
+        assert!(out_search.contains("1 matches"));
+
+        // AddSymbol input mode
+        app.ui.input_mode = InputMode::AddSymbol;
+        app.ui.input_buffer = "NVDA".to_string();
+        let out_add = render_to_string(&app);
+        assert!(out_add.contains("NVDA"));
+
+        // Localized German quotes view
+        let de_app = sample_render_app(AppLocale::De);
+        let out_de = render_to_string(&de_app);
+        assert!(out_de.contains(AppLocale::De.catalog().col_price));
+        assert!(out_de.contains(AppLocale::De.catalog().mode_quotes));
+    }
+
+    #[test]
+    fn test_render_holdings_view() {
+        // Positive and negative holdings P/L
+        let mut app = sample_render_app(AppLocale::En);
+        app.ui.show_holdings = true;
+        let out = render_to_string(&app);
+        assert!(out.contains(AppLocale::En.catalog().header_portfolio_view));
+        assert!(out.contains("AAPL"));
+        assert!(out.contains("GOOGL"));
+        assert!(out.contains(AppLocale::En.catalog().mode_holdings));
+
+        // Negative overall portfolio P/L and today change + empty holdings zero-cost branch
+        app.domain.holdings.remove("AAPL");
+        let out_loss = render_to_string(&app);
+        assert!(out_loss.contains("GOOGL"));
+
+        app.domain.holdings.clear();
+        let out_empty = render_to_string(&app);
+        assert!(out_empty.contains(AppLocale::En.catalog().header_portfolio_view));
+    }
+
+    #[test]
+    fn test_render_help_popup_ltr_and_rtl() {
+        for locale in [AppLocale::En, AppLocale::Ar] {
+            let mut app = sample_render_app(locale);
+            app.ui.show_help = true;
+            let out = render_to_string(&app);
+            let cat = locale.catalog();
+            assert!(out.contains(cat.help_title));
+            assert!(out.contains(cat.help_heading));
+        }
+    }
+
+    #[test]
+    fn test_render_detail_popup_ltr_and_rtl() {
+        for locale in [AppLocale::En, AppLocale::Ar] {
+            let mut app = sample_render_app(locale);
+            app.ui.show_detail = true;
+            app.domain.currency_convert = true;
+            app.domain.display_currency = "EUR".to_string();
+            app.domain.currency_rates.insert("USD".to_string(), 0.92);
+            let out = render_to_string(&app);
+            let cat = locale.catalog();
+            assert!(out.contains(cat.popup_detail_title));
+            assert!(out.contains("AAPL"));
+            assert!(out.contains("EUR"));
+        }
+
+        // Also cover negative change and zero day/year ranges (not_available branch)
+        let mut app = sample_render_app(AppLocale::En);
+        app.ui.show_detail = true;
+        app.ui.selected = 2; // MSFT has 0.0 open/day_low/day_high/year_low/year_high
+        let out_na = render_to_string(&app);
+        assert!(out_na.contains("MSFT"));
+        assert!(out_na.contains(AppLocale::En.catalog().not_available));
+
+        app.ui.selected = 1; // GOOGL has negative change_percent
+        let out_neg = render_to_string(&app);
+        assert!(out_neg.contains("GOOGL"));
+    }
+
+    #[test]
+    fn test_render_error_and_alerts_popups_ltr_and_rtl() {
+        for locale in [AppLocale::En, AppLocale::Ar] {
+            let cat = locale.catalog();
+
+            // Render triggered alerts popup on its own frame
+            let mut alert_app = sample_render_app(locale);
+            alert_app.domain.triggered_alerts.push((
+                "AAPL".to_string(),
+                "AAPL above $190.00 ($195.50)".to_string(),
+            ));
+            let alert_out = render_to_string(&alert_app);
+            assert!(alert_out.contains(cat.popup_alerts_title.trim()));
+            assert!(alert_out.contains("AAPL above $190.00"));
+
+            // Render error popup on its own frame
+            let mut err_app = sample_render_app(locale);
+            err_app.error = Some("Network timeout".to_string());
+            let err_out = render_to_string(&err_app);
+            assert!(err_out.contains(cat.popup_error_title.trim()));
+            assert!(err_out.contains("Network timeout"));
+        }
+    }
+
+    #[test]
+    fn test_render_batch_all_formats() {
+        use crate::cli::OutputFormat;
+
+        let mut app = sample_render_app(AppLocale::En);
+        render_batch(&app, &OutputFormat::Table);
+        app.ui.show_holdings = true;
+        render_batch(&app, &OutputFormat::Table);
+        app.ui.show_holdings = false;
+        render_batch(&app, &OutputFormat::Json);
+        render_batch(&app, &OutputFormat::Csv);
+    }
 }

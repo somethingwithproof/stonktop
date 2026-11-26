@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## پیشگی شرائط
 
-- **Rust**: ورژن 1.88 یا اس سے جدید تر (کم از کم معاون ورژن — MSRV)
+- **Rust**: ورژن 1.89 یا اس سے جدید تر (کم از کم معاون ورژن — MSRV)
 - **Cargo**: Rust کی تنصیب کے ساتھ شامل
 
 ## تنصیب
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # یا ترتیبی فائل کو طے شدہ مقام پر رکھیں:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop نمائشی زبان کا تعین `STONKTOP_LANG`، `LC_ALL`، `LC_ME
 | `s` | ترتیبی فیلڈ تبدیل کریں |
 | `r` | ترتیب کو الٹ دیں |
 | `1-7` | کالم کے لحاظ سے ترتیب دیں |
-| `Enter`, `d` | منتخب علامت کی تفصیلی پاپ اپ دکھائیں |
+| `Enter` | منتخب علامت کی تفصیلی پاپ اپ دکھائیں |
 | `/` | علامتیں تلاش/فلٹر کریں |
 | `a` | واچ لسٹ میں علامت شامل کریں |
-| `x` | منتخب علامت حذف کریں |
+| `d` | منتخب علامت حذف کریں |
 | `S` | اسپارک لائن چارٹس سائیڈ بار ٹوگل کریں |
 | `e` | واچ لسٹ کو JSON میں برآمد کریں |
 | `H` | ہولڈنگز منظر ٹوگل کریں |

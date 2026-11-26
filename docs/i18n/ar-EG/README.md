@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## المتطلبات الأساسية
 
-- **Rust**: إصدار 1.88 أو أحدث (الحد الأدنى المدعوم MSRV)
+- **Rust**: إصدار 1.89 أو أحدث (الحد الأدنى المدعوم MSRV)
 - **Cargo**: مدمج تلقائيًا مع تثبيت Rust
 
 ## التثبيت
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # أو حطّ ملف الإعدادات في المسار الافتراضي:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ stonktop -c ~/.config/stonktop/custom.toml
 | `s` | التبديل بين حقول الفرز |
 | `r` | عكس ترتيب الفرز |
 | `1-7` | الفرز حسب العمود |
-| `Enter`, `d` | عرض نافذة تفاصيل الرمز المحدد |
+| `Enter` | عرض نافذة تفاصيل الرمز المحدد |
 | `/` | البحث وتصفية الرموز |
 | `a` | إضافة رمز لقائمة المتابعة |
-| `x` | حذف الرمز المحدد |
+| `d` | حذف الرمز المحدد |
 | `S` | إظهار أو إخفاء الشريط الجانبي للرسوم المصغّرة |
 | `e` | تصدير قائمة المتابعة إلى JSON |
 | `H` | التبديل إلى عرض المحفظة |

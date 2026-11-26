@@ -49,7 +49,7 @@ TSLA       Tesla Inc.            $248.50     -8.75      -3.40%      98.5M       
 
 ## Yêu cầu hệ thống
 
-- **Rust**: Phiên bản 1.88 trở lên (MSRV)
+- **Rust**: Phiên bản 1.89 trở lên (MSRV)
 - **Cargo**: Đi kèm với bộ cài đặt Rust
 
 ## Cài đặt
@@ -133,7 +133,8 @@ stonktop -s AAPL,GOOGL -o symbol -r
 stonktop -c ~/.config/stonktop/custom.toml
 
 # Hoặc đặt tệp cấu hình tại vị trí mặc định:
-# - Linux/macOS: ~/.config/stonktop/config.toml
+# - Linux: ~/.config/stonktop/config.toml
+# - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
 ```
 
@@ -203,10 +204,10 @@ Stonktop tự động phát hiện ngôn ngữ hiển thị từ `STONKTOP_LANG`
 | `s` | Chuyển đổi trường sắp xếp |
 | `r` | Đảo ngược thứ tự sắp xếp |
 | `1-7` | Sắp xếp theo cột |
-| `Enter`, `d` | Mở hộp thoại chi tiết cho mã đang chọn |
+| `Enter` | Mở hộp thoại chi tiết cho mã đang chọn |
 | `/` | Tìm kiếm/lọc mã |
 | `a` | Thêm mã vào danh sách theo dõi |
-| `x` | Xóa mã đang chọn |
+| `d` | Xóa mã đang chọn |
 | `S` | Bật/tắt thanh bên biểu đồ sparkline |
 | `e` | Xuất danh sách theo dõi ra định dạng JSON |
 | `H` | Bật/tắt chế độ xem tài sản nắm giữ |
