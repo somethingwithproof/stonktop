@@ -155,8 +155,36 @@ stonktop -c ~/.config/stonktop/custom.toml
 | `--verbose` | `-v` | Verbose output |
 | `--init` | | Generate a sample configuration file |
 | `--force` | | Force overwrite existing config (with `--init`) |
+| `--lang` | | Display language (`STONKTOP_LANG`, default: auto from `LC_ALL`/`LC_MESSAGES`/`LANG`) |
 | `--help` | | Show help message |
 | `--version` | `-V` | Show version |
+
+## Supported Languages
+
+Stonktop detects the display language from `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`, and `LANG`, or accepts `--lang <LANG>`. All 45 supported locales include full CLI and TUI translations (including right-to-left alignment for Arabic, Persian, Hebrew, and Urdu) and localized documentation:
+
+| Code | Language | README | Code | Language | README | Code | Language | README |
+|------|----------|--------|------|----------|--------|------|----------|--------|
+| `en` | English | [English](README.md) | `af-ZA` | Afrikaans | [Afrikaans](docs/i18n/af-ZA/README.md) | `bn` | বাংলা | [বাংলা](docs/i18n/bn/README.md) |
+| `de` | Deutsch | [Deutsch](docs/i18n/de/README.md) | `am-ET` | አማርኛ | [አማርኛ](docs/i18n/am-ET/README.md) | `fa` | فارسی | [فارسی](docs/i18n/fa/README.md) |
+| `es` | Español | [Español](docs/i18n/es/README.md) | `ar-EG` | العربية (مصر) | [العربية (مصر)](docs/i18n/ar-EG/README.md) | `he` | עברית | [עברית](docs/i18n/he/README.md) |
+| `fr` | Français | [Français](docs/i18n/fr/README.md) | `ar-MA` | العربية (المغرب) | [العربية (المغرب)](docs/i18n/ar-MA/README.md) | `mr` | मराठी | [मराठी](docs/i18n/mr/README.md) |
+| `it` | Italiano | [Italiano](docs/i18n/it/README.md) | `fr-MA` | Français (Maroc) | [Français (Maroc)](docs/i18n/fr-MA/README.md) | `ta` | தமிழ் | [தமிழ்](docs/i18n/ta/README.md) |
+| `pt-BR` | Português (Brasil) | [Português](docs/i18n/pt-BR/README.md) | `fr-SN` | Français (Sénégal) | [Français (Sénégal)](docs/i18n/fr-SN/README.md) | `te` | తెలుగు | [తెలుగు](docs/i18n/te/README.md) |
+| `nl` | Nederlands | [Nederlands](docs/i18n/nl/README.md) | `ha-NG` | Hausa | [Hausa](docs/i18n/ha-NG/README.md) | `th` | ไทย | [ไทย](docs/i18n/th/README.md) |
+| `ru` | Русский | [Русский](docs/i18n/ru/README.md) | `ig-NG` | Igbo | [Igbo](docs/i18n/ig-NG/README.md) | `ur` | اردو | [اردو](docs/i18n/ur/README.md) |
+| `uk` | Українська | [Українська](docs/i18n/uk/README.md) | `mg-MG` | Malagasy | [Malagasy](docs/i18n/mg-MG/README.md) | `ms` | Bahasa Melayu | [Bahasa Melayu](docs/i18n/ms/README.md) |
+| `ja` | 日本語 | [日本語](docs/i18n/ja/README.md) | `rw-RW` | Ikinyarwanda | [Ikinyarwanda](docs/i18n/rw-RW/README.md) | `fil` | Filipino | [Filipino](docs/i18n/fil/README.md) |
+| `ko` | 한국어 | [한국어](docs/i18n/ko/README.md) | `so-SO` | Soomaali | [Soomaali](docs/i18n/so-SO/README.md) | | | |
+| `zh-CN` | 简体中文 | [简体中文](docs/i18n/zh-CN/README.md) | `sw-KE` | Kiswahili | [Kiswahili](docs/i18n/sw-KE/README.md) | | | |
+| `zh-TW` | 繁體中文 | [繁體中文](docs/i18n/zh-TW/README.md) | `xh-ZA` | isiXhosa | [isiXhosa](docs/i18n/xh-ZA/README.md) | | | |
+| `ar` | العربية | [العربية](docs/i18n/ar/README.md) | `yo-NG` | Yorùbá | [Yorùbá](docs/i18n/yo-NG/README.md) | | | |
+| `hi` | हिन्दी | [हिन्दी](docs/i18n/hi/README.md) | `zu-ZA` | isiZulu | [isiZulu](docs/i18n/zu-ZA/README.md) | | | |
+| `pl` | Polski | [Polski](docs/i18n/pl/README.md) | | | | | | |
+| `tr` | Türkçe | [Türkçe](docs/i18n/tr/README.md) | | | | | | |
+| `sv` | Svenska | [Svenska](docs/i18n/sv/README.md) | | | | | | |
+| `vi` | Tiếng Việt | [Tiếng Việt](docs/i18n/vi/README.md) | | | | | | |
+| `id` | Bahasa Indonesia | [Bahasa Indonesia](docs/i18n/id/README.md) | | | | | | |
 
 ## Keyboard Shortcuts
 
