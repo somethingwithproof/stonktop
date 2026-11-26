@@ -575,7 +575,7 @@ mod tests {
             assert_eq!(SortOrder::Volume.localized_header(cat), cat.col_volume);
             assert_eq!(SortOrder::MarketCap.localized_header(cat), cat.col_mkt_cap);
             for variant in variants {
-                assert!(!variant.localized_header(cat).is_empty());
+                assert_ne!(variant.localized_header(cat), "");
             }
         }
     }
@@ -621,7 +621,7 @@ mod tests {
             assert_eq!(QuoteType::Future.localized(cat), cat.quote_type_future);
             assert_eq!(QuoteType::Option.localized(cat), cat.quote_type_option);
             for variant in variants {
-                assert!(!variant.localized(cat).is_empty());
+                assert_ne!(variant.localized(cat), "");
             }
         }
         assert_eq!(
@@ -656,7 +656,7 @@ mod tests {
             assert_eq!(MarketState::Post.localized(cat), cat.market_state_post);
             assert_eq!(MarketState::Closed.localized(cat), cat.market_state_closed);
             for variant in variants {
-                assert!(!variant.localized(cat).is_empty());
+                assert_ne!(variant.localized(cat), "");
             }
         }
         assert_eq!(
