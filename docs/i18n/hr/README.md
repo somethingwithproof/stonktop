@@ -91,48 +91,48 @@ cargo install --path .
 ### Osnovna upotreba
 
 ```bash
-# Watch specific symbols
+# Pratite određene simbole
 stonktop -s AAPL,GOOGL,MSFT,BTC-USD
 
-# With crypto shortcuts
+# S kripto prečacima
 stonktop -s AAPL,BTC,ETH,SOL
 ```
 
 ### Opcije slične alatu top
 
 ```bash
-# Set refresh delay (like top -d)
+# Postavite razmak osvježavanja (poput top -d)
 stonktop -s AAPL,GOOGL -d 10
 
-# Run N iterations then exit (like top -n)
+# Pokrenite N ponavljanja i izađite (poput top -n)
 stonktop -s AAPL -n 5
 
-# Batch mode for scripting (like top -b)
+# Skupni način rada za skripte (poput top -b)
 stonktop -s AAPL,GOOGL -b
 
-# Secure mode - disable interactive commands
+# Sigurni način rada - onemogućuje interaktivne naredbe
 stonktop -s AAPL -S
 ```
 
 ### Opcije razvrstavanja
 
 ```bash
-# Sort by price (descending)
+# Razvrstaj po cijeni (silazno)
 stonktop -s AAPL,GOOGL -o price
 
-# Sort by symbol (ascending)
+# Razvrstaj po simbolu (uzlazno)
 stonktop -s AAPL,GOOGL -o symbol -r
 
-# Available sort fields: symbol, name, price, change, change-percent, volume, market-cap
+# Dostupna polja razvrstavanja: symbol, name, price, change, change-percent, volume, market-cap
 ```
 
 ### Datoteka s postavkama
 
 ```bash
-# Use specific config file
+# Upotrijebite određenu datoteku s postavkama
 stonktop -c ~/.config/stonktop/custom.toml
 
-# Or place config at default location:
+# Ili pohranite postavke na zadanu lokaciju:
 # - Linux: ~/.config/stonktop/config.toml
 # - macOS: ~/Library/Application Support/stonktop/config.toml
 # - Windows: %APPDATA%\stonktop\config.toml
@@ -238,7 +238,7 @@ symbols = [
     "ETH-USD",
 ]
 
-# Portfolio holdings (optional)
+# Udjeli u portfelju (neobavezno)
 [[holdings]]
 symbol = "AAPL"
 quantity = 100
@@ -263,17 +263,17 @@ neutral = "#ffffff"
 header = "#1e90ff"
 border = "#444444"
 
-# Symbol groups
+# Skupine simbola
 [groups]
 tech = ["AAPL", "GOOGL", "MSFT", "NVDA"]
 crypto = ["BTC-USD", "ETH-USD", "SOL-USD"]
 
-# Multi-currency display (optional)
+# Prikaz u više valuta (neobavezno)
 [currency]
 display = "EUR"
 convert = true
 
-# Price alerts (optional)
+# Upozorenja o cijenama (neobavezno)
 [[alerts]]
 symbol = "AAPL"
 above = 200.00
@@ -282,7 +282,7 @@ above = 200.00
 symbol = "BTC-USD"
 below = 20000.00
 
-# Custom crypto shortcuts (optional)
+# Prilagođeni kripto prečaci (neobavezno)
 [shortcuts]
 PEPE = "PEPE-USD"
 SHIB = "SHIB-USD"
@@ -306,40 +306,40 @@ Stonktop koristi Yahoo Finance API za dohvat kotacija u stvarnom vremenu. API kl
 ### Izgradnja
 
 ```bash
-# Debug build
+# Debug izgradnja
 cargo build
 
-# Release build
+# Release izgradnja
 cargo build --release
 ```
 
 ### Testiranje
 
 ```bash
-# Run all tests
+# Pokrenite sve testove
 cargo test
 
-# Run tests with output
+# Pokrenite testove s ispisom izlaza
 cargo test -- --nocapture
 ```
 
 ### Provjera koda (Lint)
 
 ```bash
-# Check for linting issues
+# Provjerite pogreške statičke analize
 cargo clippy --all-targets --all-features
 
-# Apply automatic fixes
+# Primijenite automatske popravke
 cargo clippy --fix --allow-dirty
 ```
 
 ### Oblikovanje
 
 ```bash
-# Check formatting
+# Provjerite oblikovanje
 cargo fmt -- --check
 
-# Apply formatting
+# Primijenite oblikovanje
 cargo fmt
 ```
 
@@ -349,9 +349,10 @@ Doprinosi su dobrodošli! Slobodno pošaljite Pull Request.
 
 1. Napravite fork repozitorija
 2. Stvorite svoju granu za značajku (`git checkout -b feature/amazing-feature`)
-3. Pohranite promjene (`git commit -m 'Add amazing feature'`)
-4. Pošaljite granu na poslužitelj (`git push origin feature/amazing-feature`)
-5. Otvorite Pull Request
+3. Pripremite izmijenjene datoteke (`git add <datoteke>`)
+4. Pohranite promjene (`git commit -m 'Add amazing feature'`)
+5. Pošaljite granu na poslužitelj (`git push origin feature/amazing-feature`)
+6. Otvorite Pull Request
 
 ## Licenca
 

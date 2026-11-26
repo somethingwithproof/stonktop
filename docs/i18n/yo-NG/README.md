@@ -164,7 +164,7 @@ stonktop -c ~/.config/stonktop/custom.toml
 
 ## Àwọn Èdè Tí A Ṣàtìlẹ́yìn Fún
 
-Stonktop ń ṣàwárí èdè ìfihàn láti `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`, àti `LANG`, tàbí kí ó gba `--lang <LANG>`. Gbogbo àwọn agbègbè èdè márùndínláàádọ́ta (48) tí a ṣàtìlẹ́yìn fún ní ìtumọ̀ kíkún fún CLI àti TUI (pẹ̀lú ìtòlẹ́sẹẹsẹ láti ọ̀tún sí òsì fún èdè Lárúbáwá, Páṣíà, Hébérù, àti Úrúdù) àti àwọn ìwé-àkọsílẹ̀ tí a túmọ̀:
+Stonktop ń ṣàwárí èdè ìfihàn láti `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`, àti `LANG`, tàbí kí ó gba `--lang <LANG>`. Gbogbo àwọn agbègbè èdè méjìdínláàádọ́ta (48) tí a ṣàtìlẹ́yìn fún ní ìtumọ̀ kíkún fún CLI àti TUI (pẹ̀lú ìtòlẹ́sẹẹsẹ láti ọ̀tún sí òsì fún èdè Lárúbáwá, Páṣíà, Hébérù, àti Úrúdù) àti àwọn ìwé-àkọsílẹ̀ tí a túmọ̀:
 
 | Kóòdù | Èdè | README | Kóòdù | Èdè | README | Kóòdù | Èdè | README |
 |-------|-----|--------|-------|-----|--------|-------|-----|--------|
