@@ -3,7 +3,7 @@
 
 //! Internationalization (i18n) support for Stonktop.
 //!
-//! Provides compile-time checked translations for 45 locales with POSIX
+//! Provides compile-time checked translations for 48 locales with POSIX
 //! environment detection (`LC_ALL`, `LC_MESSAGES`, `LANG`) and optional
 //! override via `--lang` or `STONKTOP_LANG`.
 
@@ -105,12 +105,18 @@ pub enum Locale {
     Ms,
     /// Filipino.
     Fil,
+    /// Bosnian.
+    Bs,
+    /// Croatian.
+    Hr,
+    /// Serbian (Cyrillic).
+    Sr,
 }
 
 impl Locale {
-    /// All 45 supported locales.
+    /// All 48 supported locales.
     #[allow(dead_code)]
-    pub const ALL: [Locale; 45] = [
+    pub const ALL: [Locale; 48] = [
         Locale::En,
         Locale::De,
         Locale::Es,
@@ -156,6 +162,9 @@ impl Locale {
         Locale::Ur,
         Locale::Ms,
         Locale::Fil,
+        Locale::Bs,
+        Locale::Hr,
+        Locale::Sr,
     ];
 
     /// Canonical BCP 47 language tag for this locale.
@@ -207,6 +216,9 @@ impl Locale {
             Locale::Ur => "ur",
             Locale::Ms => "ms",
             Locale::Fil => "fil",
+            Locale::Bs => "bs",
+            Locale::Hr => "hr",
+            Locale::Sr => "sr",
         }
     }
 
@@ -322,6 +334,9 @@ impl Locale {
             "ur" => Some(Locale::Ur),
             "ms" => Some(Locale::Ms),
             "fil" | "tl" => Some(Locale::Fil),
+            "bs" => Some(Locale::Bs),
+            "hr" => Some(Locale::Hr),
+            "sr" => Some(Locale::Sr),
             _ => None,
         }
     }
@@ -468,8 +483,8 @@ mod tests {
     }
 
     #[test]
-    fn test_all_45_locales_parse() {
-        assert_eq!(Locale::ALL.len(), 45);
+    fn test_all_48_locales_parse() {
+        assert_eq!(Locale::ALL.len(), 48);
         for locale in Locale::ALL {
             assert_eq!(Locale::from_tag(locale.code()), Some(locale));
         }
@@ -497,6 +512,19 @@ mod tests {
         assert_eq!(Locale::from_tag("in_ID.UTF-8"), Some(Locale::Id));
         assert_eq!(Locale::from_tag("tl"), Some(Locale::Fil));
         assert_eq!(Locale::from_tag("tl_PH.UTF-8"), Some(Locale::Fil));
+        assert_eq!(Locale::from_tag("bs"), Some(Locale::Bs));
+        assert_eq!(Locale::from_tag("bs-BA"), Some(Locale::Bs));
+        assert_eq!(Locale::from_tag("bs_BA.UTF-8"), Some(Locale::Bs));
+        assert_eq!(Locale::from_tag("hr"), Some(Locale::Hr));
+        assert_eq!(Locale::from_tag("hr-HR"), Some(Locale::Hr));
+        assert_eq!(Locale::from_tag("hr_HR.UTF-8"), Some(Locale::Hr));
+        assert_eq!(Locale::from_tag("sr"), Some(Locale::Sr));
+        assert_eq!(Locale::from_tag("sr-RS"), Some(Locale::Sr));
+        assert_eq!(Locale::from_tag("sr-Cyrl"), Some(Locale::Sr));
+        assert_eq!(Locale::from_tag("sr-Latn"), Some(Locale::Sr));
+        assert_eq!(Locale::from_tag("sr-Cyrl-RS"), Some(Locale::Sr));
+        assert_eq!(Locale::from_tag("sr-Latn-RS"), Some(Locale::Sr));
+        assert_eq!(Locale::from_tag("sr_RS.UTF-8"), Some(Locale::Sr));
         assert_eq!(Locale::from_tag(""), None);
         assert_eq!(Locale::from_tag("zz-INVALID"), None);
     }
@@ -510,7 +538,7 @@ mod tests {
             .filter(|l| !l.is_rtl())
             .collect();
         assert_eq!(rtl.len(), 6);
-        assert_eq!(ltr.len(), 39);
+        assert_eq!(ltr.len(), 42);
         for expected in [
             Locale::Ar,
             Locale::ArEg,
@@ -546,6 +574,24 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_south_slavic_catalogs_are_distinct() {
+        let bs = Locale::Bs.catalog().entries();
+        let hr = Locale::Hr.catalog().entries();
+        let sr = Locale::Sr.catalog().entries();
+        assert_ne!(bs, hr, "Bosnian and Croatian catalogs must be distinct");
+        assert_ne!(bs, sr, "Bosnian and Serbian catalogs must be distinct");
+        assert_ne!(hr, sr, "Croatian and Serbian catalogs must be distinct");
+        assert!(
+            Locale::Sr
+                .catalog()
+                .cli_about
+                .chars()
+                .any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)),
+            "Serbian catalog must use Cyrillic script"
+        );
     }
 
     #[test]

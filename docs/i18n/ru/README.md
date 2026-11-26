@@ -164,7 +164,7 @@ stonktop -c ~/.config/stonktop/custom.toml
 
 ## Поддерживаемые языки
 
-Stonktop автоматически определяет язык интерфейса по переменным `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES` и `LANG` либо принимает параметр `--lang <LANG>`. Все 45 поддерживаемых локалей включают полный перевод CLI и TUI (в том числе выравнивание справа налево для арабского, персидского, иврита и урду) и локализованную документацию:
+Stonktop автоматически определяет язык интерфейса по переменным `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES` и `LANG` либо принимает параметр `--lang <LANG>`. Все 48 поддерживаемых локалей включают полный перевод CLI и TUI (в том числе выравнивание справа налево для арабского, персидского, иврита и урду) и локализованную документацию:
 
 | Код | Язык | README | Код | Язык | README | Код | Язык | README |
 |-----|------|--------|-----|------|--------|-----|------|--------|
@@ -178,9 +178,9 @@ Stonktop автоматически определяет язык интерфе
 | `ru` | Русский | [Русский](../ru/README.md) | `ig-NG` | Igbo | [Igbo](../ig-NG/README.md) | `ur` | اردو | [اردو](../ur/README.md) |
 | `uk` | Українська | [Українська](../uk/README.md) | `mg-MG` | Malagasy | [Malagasy](../mg-MG/README.md) | `ms` | Bahasa Melayu | [Bahasa Melayu](../ms/README.md) |
 | `ja` | 日本語 | [日本語](../ja/README.md) | `rw-RW` | Ikinyarwanda | [Ikinyarwanda](../rw-RW/README.md) | `fil` | Filipino | [Filipino](../fil/README.md) |
-| `ko` | 한국어 | [한국어](../ko/README.md) | `so-SO` | Soomaali | [Soomaali](../so-SO/README.md) | | | |
-| `zh-CN` | 简体中文 | [简体中文](../zh-CN/README.md) | `sw-KE` | Kiswahili | [Kiswahili](../sw-KE/README.md) | | | |
-| `zh-TW` | 繁體中文 | [繁體中文](../zh-TW/README.md) | `xh-ZA` | isiXhosa | [isiXhosa](../xh-ZA/README.md) | | | |
+| `ko` | 한국어 | [한국어](../ko/README.md) | `so-SO` | Soomaali | [Soomaali](../so-SO/README.md) | `bs` | Bosanski | [Bosanski](../bs/README.md) |
+| `zh-CN` | 简体中文 | [简体中文](../zh-CN/README.md) | `sw-KE` | Kiswahili | [Kiswahili](../sw-KE/README.md) | `hr` | Hrvatski | [Hrvatski](../hr/README.md) |
+| `zh-TW` | 繁體中文 | [繁體中文](../zh-TW/README.md) | `xh-ZA` | isiXhosa | [isiXhosa](../xh-ZA/README.md) | `sr` | Српски | [Српски](../sr/README.md) |
 | `ar` | العربية | [العربية](../ar/README.md) | `yo-NG` | Yorùbá | [Yorùbá](../yo-NG/README.md) | | | |
 | `hi` | हिन्दी | [हिन्दी](../hi/README.md) | `zu-ZA` | isiZulu | [isiZulu](../zu-ZA/README.md) | | | |
 | `pl` | Polski | [Polski](../pl/README.md) | | | | | | |

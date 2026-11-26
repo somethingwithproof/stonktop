@@ -162,7 +162,7 @@ stonktop -c ~/.config/stonktop/custom.toml
 
 ## Supported Languages
 
-Stonktop detects the display language from `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`, and `LANG`, or accepts `--lang <LANG>`. All 45 supported locales include full CLI and TUI translations (including right-to-left alignment for Arabic, Persian, Hebrew, and Urdu) and localized documentation:
+Stonktop detects the display language from `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAGES`, and `LANG`, or accepts `--lang <LANG>`. All 48 supported locales include full CLI and TUI translations (including right-to-left alignment for Arabic, Persian, Hebrew, and Urdu) and localized documentation:
 
 | Code | Language | README | Code | Language | README | Code | Language | README |
 |------|----------|--------|------|----------|--------|------|----------|--------|
@@ -176,9 +176,9 @@ Stonktop detects the display language from `STONKTOP_LANG`, `LC_ALL`, `LC_MESSAG
 | `ru` | Русский | [Русский](docs/i18n/ru/README.md) | `ig-NG` | Igbo | [Igbo](docs/i18n/ig-NG/README.md) | `ur` | اردو | [اردو](docs/i18n/ur/README.md) |
 | `uk` | Українська | [Українська](docs/i18n/uk/README.md) | `mg-MG` | Malagasy | [Malagasy](docs/i18n/mg-MG/README.md) | `ms` | Bahasa Melayu | [Bahasa Melayu](docs/i18n/ms/README.md) |
 | `ja` | 日本語 | [日本語](docs/i18n/ja/README.md) | `rw-RW` | Ikinyarwanda | [Ikinyarwanda](docs/i18n/rw-RW/README.md) | `fil` | Filipino | [Filipino](docs/i18n/fil/README.md) |
-| `ko` | 한국어 | [한국어](docs/i18n/ko/README.md) | `so-SO` | Soomaali | [Soomaali](docs/i18n/so-SO/README.md) | | | |
-| `zh-CN` | 简体中文 | [简体中文](docs/i18n/zh-CN/README.md) | `sw-KE` | Kiswahili | [Kiswahili](docs/i18n/sw-KE/README.md) | | | |
-| `zh-TW` | 繁體中文 | [繁體中文](docs/i18n/zh-TW/README.md) | `xh-ZA` | isiXhosa | [isiXhosa](docs/i18n/xh-ZA/README.md) | | | |
+| `ko` | 한국어 | [한국어](docs/i18n/ko/README.md) | `so-SO` | Soomaali | [Soomaali](docs/i18n/so-SO/README.md) | `bs` | Bosanski | [Bosanski](docs/i18n/bs/README.md) |
+| `zh-CN` | 简体中文 | [简体中文](docs/i18n/zh-CN/README.md) | `sw-KE` | Kiswahili | [Kiswahili](docs/i18n/sw-KE/README.md) | `hr` | Hrvatski | [Hrvatski](docs/i18n/hr/README.md) |
+| `zh-TW` | 繁體中文 | [繁體中文](docs/i18n/zh-TW/README.md) | `xh-ZA` | isiXhosa | [isiXhosa](docs/i18n/xh-ZA/README.md) | `sr` | Српски | [Српски](docs/i18n/sr/README.md) |
 | `ar` | العربية | [العربية](docs/i18n/ar/README.md) | `yo-NG` | Yorùbá | [Yorùbá](docs/i18n/yo-NG/README.md) | | | |
 | `hi` | हिन्दी | [हिन्दी](docs/i18n/hi/README.md) | `zu-ZA` | isiZulu | [isiZulu](docs/i18n/zu-ZA/README.md) | | | |
 | `pl` | Polski | [Polski](docs/i18n/pl/README.md) | | | | | | |

@@ -164,7 +164,7 @@ stonktop -c ~/.config/stonktop/custom.toml
 
 ## 対応言語
 
-Stonktop は `STONKTOP_LANG`、`LC_ALL`、`LC_MESSAGES`、`LANG` の各環境変数から表示言語を自動検出するほか、`--lang <LANG>` による明示的な指定にも対応しています。対応する全 45 ロケールで CLI および TUI の完全な翻訳（アラビア語、ペルシア語、ヘブライ語、ウルドゥー語の右から左へのレイアウト対応を含む）とローカライズ済みドキュメントを提供しています。
+Stonktop は `STONKTOP_LANG`、`LC_ALL`、`LC_MESSAGES`、`LANG` の各環境変数から表示言語を自動検出するほか、`--lang <LANG>` による明示的な指定にも対応しています。対応する全 48 ロケールで CLI および TUI の完全な翻訳（アラビア語、ペルシア語、ヘブライ語、ウルドゥー語の右から左へのレイアウト対応を含む）とローカライズ済みドキュメントを提供しています。
 
 | コード | 言語 | README | コード | 言語 | README | コード | 言語 | README |
 |--------|------|--------|--------|------|--------|--------|------|--------|
@@ -178,9 +178,9 @@ Stonktop は `STONKTOP_LANG`、`LC_ALL`、`LC_MESSAGES`、`LANG` の各環境変
 | `ru` | Русский | [Русский](../ru/README.md) | `ig-NG` | Igbo | [Igbo](../ig-NG/README.md) | `ur` | اردو | [اردو](../ur/README.md) |
 | `uk` | Українська | [Українська](../uk/README.md) | `mg-MG` | Malagasy | [Malagasy](../mg-MG/README.md) | `ms` | Bahasa Melayu | [Bahasa Melayu](../ms/README.md) |
 | `ja` | 日本語 | [日本語](../ja/README.md) | `rw-RW` | Ikinyarwanda | [Ikinyarwanda](../rw-RW/README.md) | `fil` | Filipino | [Filipino](../fil/README.md) |
-| `ko` | 한국어 | [한국어](../ko/README.md) | `so-SO` | Soomaali | [Soomaali](../so-SO/README.md) | | | |
-| `zh-CN` | 简体中文 | [简体中文](../zh-CN/README.md) | `sw-KE` | Kiswahili | [Kiswahili](../sw-KE/README.md) | | | |
-| `zh-TW` | 繁體中文 | [繁體中文](../zh-TW/README.md) | `xh-ZA` | isiXhosa | [isiXhosa](../xh-ZA/README.md) | | | |
+| `ko` | 한국어 | [한국어](../ko/README.md) | `so-SO` | Soomaali | [Soomaali](../so-SO/README.md) | `bs` | Bosanski | [Bosanski](../bs/README.md) |
+| `zh-CN` | 简体中文 | [简体中文](../zh-CN/README.md) | `sw-KE` | Kiswahili | [Kiswahili](../sw-KE/README.md) | `hr` | Hrvatski | [Hrvatski](../hr/README.md) |
+| `zh-TW` | 繁體中文 | [繁體中文](../zh-TW/README.md) | `xh-ZA` | isiXhosa | [isiXhosa](../xh-ZA/README.md) | `sr` | Српски | [Српски](../sr/README.md) |
 | `ar` | العربية | [العربية](../ar/README.md) | `yo-NG` | Yorùbá | [Yorùbá](../yo-NG/README.md) | | | |
 | `hi` | हिन्दी | [हिन्दी](../hi/README.md) | `zu-ZA` | isiZulu | [isiZulu](../zu-ZA/README.md) | | | |
 | `pl` | Polski | [Polski](../pl/README.md) | | | | | | |
