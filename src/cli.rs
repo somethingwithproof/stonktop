@@ -5,13 +5,14 @@
 //!
 //! All the flags you need to customize your financial anxiety experience.
 
-use clap::{Parser, ValueEnum};
+use crate::i18n::Locale;
+use clap::{CommandFactory, FromArgMatches, Parser, ValueEnum};
 use std::path::PathBuf;
 
 fn parse_positive_f64(s: &str) -> Result<f64, String> {
     let val: f64 = s.parse().map_err(|e| format!("{e}"))?;
     if !val.is_finite() || val <= 0.0 {
-        return Err("delay must be a positive number".to_string());
+        return Err(Locale::detect().catalog().err_delay_positive.to_string());
     }
     Ok(val)
 }
@@ -96,6 +97,10 @@ pub struct Args {
     /// Force overwrite existing config file (use with --init)
     #[arg(long)]
     pub force: bool,
+
+    /// Display language (e.g. en, de, ja, zh-CN, pt-BR)
+    #[arg(long, env = "STONKTOP_LANG")]
+    pub lang: Option<String>,
 }
 
 /// Sort field options (similar to top's sort fields).
@@ -157,10 +162,42 @@ pub enum OutputFormat {
 }
 
 impl Args {
-    /// Parse command line arguments.
+    /// Build a clap command with localized help text for the active locale.
+    #[allow(dead_code)]
+    pub fn localized_command(locale: Locale) -> clap::Command {
+        let cat = locale.catalog();
+        Args::command()
+            .about(cat.cli_about)
+            .mut_arg("symbols", |a| a.help(cat.cli_opt_symbols))
+            .mut_arg("delay", |a| a.help(cat.cli_opt_delay))
+            .mut_arg("iterations", |a| a.help(cat.cli_opt_iterations))
+            .mut_arg("batch", |a| a.help(cat.cli_opt_batch))
+            .mut_arg("secure", |a| a.help(cat.cli_opt_secure))
+            .mut_arg("config", |a| a.help(cat.cli_opt_config))
+            .mut_arg("sort", |a| a.help(cat.cli_opt_sort))
+            .mut_arg("reverse", |a| a.help(cat.cli_opt_reverse))
+            .mut_arg("holdings", |a| a.help(cat.cli_opt_holdings))
+            .mut_arg("currency", |a| a.help(cat.cli_opt_currency))
+            .mut_arg("color", |a| a.help(cat.cli_opt_color))
+            .mut_arg("verbose", |a| a.help(cat.cli_opt_verbose))
+            .mut_arg("timeout", |a| a.help(cat.cli_opt_timeout))
+            .mut_arg("format", |a| a.help(cat.cli_opt_format))
+            .mut_arg("init", |a| a.help(cat.cli_opt_init))
+            .mut_arg("force", |a| a.help(cat.cli_opt_force))
+            .mut_arg("lang", |a| a.help(cat.cli_opt_lang))
+    }
+
+    /// Parse command line arguments with localized help text.
     /// Where your journey to financial enlightenment begins.
+    #[allow(dead_code)]
     pub fn parse_args() -> Self {
-        Args::parse()
+        let raw_args: Vec<String> = std::env::args().collect();
+        let locale = Locale::resolve(crate::i18n::extract_cli_lang(&raw_args).as_deref());
+        let matches = Self::localized_command(locale).get_matches_from(raw_args);
+        match Self::from_arg_matches(&matches) {
+            Ok(args) => args,
+            Err(err) => err.exit(),
+        }
     }
 
     // use_colors and atty_check were removed; color mode is wired via App.ui.color_mode and UiColors::for_app.

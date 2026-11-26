@@ -97,6 +97,23 @@ pub enum QuoteType {
     Option,
 }
 
+impl QuoteType {
+    /// Return the localized label for this quote type.
+    #[allow(dead_code)]
+    pub const fn localized(self, cat: &crate::i18n::Catalog) -> &'static str {
+        match self {
+            QuoteType::Equity => cat.quote_type_stock,
+            QuoteType::Cryptocurrency => cat.quote_type_crypto,
+            QuoteType::Etf => cat.quote_type_etf,
+            QuoteType::MutualFund => cat.quote_type_fund,
+            QuoteType::Index => cat.quote_type_index,
+            QuoteType::Currency => cat.quote_type_forex,
+            QuoteType::Future => cat.quote_type_future,
+            QuoteType::Option => cat.quote_type_option,
+        }
+    }
+}
+
 impl std::fmt::Display for QuoteType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -120,6 +137,19 @@ pub enum MarketState {
     Post,
     #[default]
     Closed,
+}
+
+impl MarketState {
+    /// Return the localized label for this market state.
+    #[allow(dead_code)]
+    pub const fn localized(self, cat: &crate::i18n::Catalog) -> &'static str {
+        match self {
+            MarketState::Pre => cat.market_state_pre,
+            MarketState::Regular => cat.market_state_open,
+            MarketState::Post => cat.market_state_post,
+            MarketState::Closed => cat.market_state_closed,
+        }
+    }
 }
 
 impl std::fmt::Display for MarketState {
@@ -198,6 +228,7 @@ impl SortOrder {
     }
 
     /// Get column header name.
+    #[allow(dead_code)]
     pub fn header(&self) -> &'static str {
         match self {
             SortOrder::Symbol => "SYMBOL",
@@ -207,6 +238,20 @@ impl SortOrder {
             SortOrder::ChangePercent => "CHG%",
             SortOrder::Volume => "VOLUME",
             SortOrder::MarketCap => "MKT CAP",
+        }
+    }
+
+    /// Get localized column header name.
+    #[allow(dead_code)]
+    pub const fn localized_header(self, cat: &crate::i18n::Catalog) -> &'static str {
+        match self {
+            SortOrder::Symbol => cat.col_symbol,
+            SortOrder::Name => cat.col_name,
+            SortOrder::Price => cat.col_price,
+            SortOrder::Change => cat.col_change,
+            SortOrder::ChangePercent => cat.col_chg_pct,
+            SortOrder::Volume => cat.col_volume,
+            SortOrder::MarketCap => cat.col_mkt_cap,
         }
     }
 }

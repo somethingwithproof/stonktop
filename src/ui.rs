@@ -7,15 +7,25 @@
 //! (The data itself? Still ugly. That's not our fault.)
 
 use crate::app::App;
+use crate::i18n::{fmt1, Locale as AppLocale};
 use crate::models::SortOrder;
 use num_format::{Locale, ToFormattedString};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Sparkline, Table, TableState, Wrap},
     Frame,
 };
+
+/// Return the paragraph text alignment matching the active locale direction.
+const fn text_alignment(locale: AppLocale) -> Alignment {
+    if locale.is_rtl() {
+        Alignment::Right
+    } else {
+        Alignment::Left
+    }
+}
 
 /// Colors for the UI.
 pub struct UiColors {
@@ -119,7 +129,7 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     // Render help overlay if active
     if app.ui.show_help {
-        render_help_overlay(frame, &colors);
+        render_help_overlay(frame, app.ui.locale, &colors);
     }
 
     // Render alerts if any triggered
@@ -129,7 +139,7 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     // Render error if present
     if let Some(ref error) = app.error {
-        render_error(frame, error, &colors);
+        render_error(frame, error, app.ui.locale, &colors);
     }
 
     // Render detail popup if active
@@ -140,6 +150,7 @@ pub fn render(frame: &mut Frame, app: &App) {
 
 /// Render the header with summary information.
 fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
+    let cat = app.ui.locale.catalog();
     let visible = app.visible_quotes();
     let gains = visible.iter().filter(|q| q.change_percent > 0.0).count();
     let losses = visible.iter().filter(|q| q.change_percent < 0.0).count();
@@ -164,12 +175,12 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
                         .fg(Color::Cyan)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::raw("- Portfolio View"),
+                Span::raw(format!("- {}", cat.header_portfolio_view)),
             ]),
             Line::from(vec![
-                Span::raw(format!("Value: ${:.2}  ", total_value)),
+                Span::raw(format!("{}: ${:.2}  ", cat.header_value, total_value)),
                 Span::styled(
-                    format!("P/L: {:+.2} ({:+.2}%)  ", total_pnl, pnl_pct),
+                    format!("{}: {:+.2} ({:+.2}%)  ", cat.header_pnl, total_pnl, pnl_pct),
                     Style::default().fg(if total_pnl >= 0.0 {
                         colors.gain
                     } else {
@@ -177,7 +188,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
                     }),
                 ),
                 Span::styled(
-                    format!("Today: {:+.2}", today_change),
+                    format!("{}: {:+.2}", cat.header_today, today_change),
                     Style::default().fg(if today_change >= 0.0 {
                         colors.gain
                     } else {
@@ -196,20 +207,32 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(format!(
-                    "- {} symbols [{}]",
-                    visible.len(),
-                    app.active_group_name()
+                    "- {} [{}]",
+                    fmt1(
+                        cat.header_symbols_count,
+                        "count",
+                        &visible.len().to_string()
+                    ),
+                    app.active_group_display_name()
                 )),
             ]),
             Line::from(vec![
                 Span::styled(format!("{} ", gains), Style::default().fg(colors.gain)),
-                Span::raw("up  "),
+                Span::raw(format!("{}  ", cat.status_up)),
                 Span::styled(format!("{} ", losses), Style::default().fg(colors.loss)),
-                Span::raw("down  "),
-                Span::raw(format!("{} unchanged  ", unchanged)),
-                Span::raw(format!("Updated: {} ", app.time_since_refresh())),
+                Span::raw(format!("{}  ", cat.status_down)),
+                Span::raw(format!("{} {}  ", unchanged, cat.status_unchanged)),
+                Span::raw(format!(
+                    "{}: {} ",
+                    cat.status_updated,
+                    app.time_since_refresh()
+                )),
                 Span::styled(
-                    if markets_open { "[open]" } else { "[closed]" },
+                    if markets_open {
+                        cat.market_open_badge
+                    } else {
+                        cat.market_closed_badge
+                    },
                     Style::default().fg(if markets_open {
                         colors.gain
                     } else {
@@ -220,45 +243,49 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
         ]
     };
 
-    let header = Paragraph::new(header_text).block(
-        Block::default()
-            .borders(Borders::BOTTOM)
-            .border_style(Style::default().fg(colors.border)),
-    );
+    let header = Paragraph::new(header_text)
+        .alignment(text_alignment(app.ui.locale))
+        .block(
+            Block::default()
+                .borders(Borders::BOTTOM)
+                .border_style(Style::default().fg(colors.border)),
+        );
 
     frame.render_widget(header, area);
 }
 
 /// Render the quotes table.
 fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
-    let mut base_headers: Vec<(&str, SortOrder)> = vec![
-        ("SYMBOL", SortOrder::Symbol),
-        ("NAME", SortOrder::Name),
-        ("PRICE", SortOrder::Price),
-        ("CHANGE", SortOrder::Change),
-        ("CHG%", SortOrder::ChangePercent),
-        ("VOLUME", SortOrder::Volume),
-        ("MKT CAP", SortOrder::MarketCap),
+    let cat = app.ui.locale.catalog();
+    let mut base_headers: Vec<(&str, Option<SortOrder>)> = vec![
+        (cat.col_symbol, Some(SortOrder::Symbol)),
+        (cat.col_name, Some(SortOrder::Name)),
+        (cat.col_price, Some(SortOrder::Price)),
+        (cat.col_change, Some(SortOrder::Change)),
+        (cat.col_chg_pct, Some(SortOrder::ChangePercent)),
+        (cat.col_volume, Some(SortOrder::Volume)),
+        (cat.col_mkt_cap, Some(SortOrder::MarketCap)),
     ];
 
     // Fundamentals mode adds price range columns
     if app.ui.show_fundamentals {
-        base_headers.push(("OPEN", SortOrder::Price));
-        base_headers.push(("HIGH", SortOrder::Price));
-        base_headers.push(("LOW", SortOrder::Price));
-        base_headers.push(("52W H", SortOrder::Price));
-        base_headers.push(("52W L", SortOrder::Price));
+        base_headers.push((cat.col_open, None));
+        base_headers.push((cat.col_high, None));
+        base_headers.push((cat.col_low, None));
+        base_headers.push((cat.col_52w_h, None));
+        base_headers.push((cat.col_52w_l, None));
     }
 
     // Verbose mode adds extra columns for the truly data-hungry
     if app.ui.verbose {
-        base_headers.push(("EXCHANGE", SortOrder::Symbol)); // no dedicated sort
-        base_headers.push(("CCY", SortOrder::Symbol));
-        base_headers.push(("TYPE", SortOrder::Symbol));
+        base_headers.push((cat.col_exchange, None));
+        base_headers.push((cat.col_ccy, None));
+        base_headers.push((cat.col_type, None));
     }
 
     let header_cells = base_headers.iter().map(|(name, order)| {
-        let style = if app.domain.sort_order == *order && *name == order.header() {
+        let is_sorted = *order == Some(app.domain.sort_order);
+        let style = if is_sorted {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
@@ -266,7 +293,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
             Style::default().fg(Color::White)
         };
 
-        let indicator = if app.domain.sort_order == *order && *name == order.header() {
+        let indicator = if is_sorted {
             match app.domain.sort_direction {
                 crate::models::SortDirection::Ascending => " ▲",
                 crate::models::SortDirection::Descending => " ▼",
@@ -327,7 +354,7 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
         if app.ui.verbose {
             cells.push(Cell::from(truncate_string(&quote.exchange, 10)));
             cells.push(Cell::from(quote.currency.clone()));
-            cells.push(Cell::from(format!("{}", quote.quote_type)));
+            cells.push(Cell::from(quote.quote_type.localized(cat)));
         }
 
         Row::new(cells).style(row_style)
@@ -371,11 +398,20 @@ fn render_quotes_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColo
 
 /// Render the holdings/portfolio table.
 fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
+    let cat = app.ui.locale.catalog();
     let header_cells = [
-        "SYMBOL", "NAME", "PRICE", "QTY", "VALUE", "COST", "P/L", "P/L%", "TODAY",
+        cat.col_symbol,
+        cat.col_name,
+        cat.col_price,
+        cat.col_qty,
+        cat.col_value,
+        cat.col_cost,
+        cat.col_pnl,
+        cat.col_pnl_pct,
+        cat.col_today,
     ]
-    .iter()
-    .map(|h| Cell::from(*h).style(Style::default().fg(Color::White)));
+    .into_iter()
+    .map(|h| Cell::from(h).style(Style::default().fg(Color::White)));
 
     let header = Row::new(header_cells)
         .style(Style::default().bg(colors.header_bg))
@@ -457,11 +493,12 @@ fn render_holdings_table(frame: &mut Frame, app: &App, area: Rect, colors: &UiCo
 
 /// Render the footer with keybindings.
 fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
+    let cat = app.ui.locale.catalog();
     // Input mode gets a special prompt
     match app.ui.input_mode {
         crate::app::InputMode::AddSymbol => {
             let input_line = Line::from(vec![
-                Span::styled(" Add symbol: ", Style::default().fg(Color::Yellow)),
+                Span::styled(cat.prompt_add_symbol, Style::default().fg(Color::Yellow)),
                 Span::raw(&app.ui.input_buffer),
                 Span::styled(
                     "_",
@@ -485,7 +522,14 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::SLOW_BLINK),
                 ),
-                Span::raw(format!("  ({} matches)", app.visible_quotes().len())),
+                Span::raw(format!(
+                    "  {}",
+                    fmt1(
+                        cat.search_matches,
+                        "count",
+                        &app.visible_quotes().len().to_string()
+                    )
+                )),
             ]);
             let footer_widget =
                 Paragraph::new(input_line).style(Style::default().bg(colors.header_bg));
@@ -496,13 +540,13 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
     }
 
     let mode = if app.ui.show_holdings {
-        "Holdings"
+        cat.mode_holdings
     } else {
-        "Quotes"
+        cat.mode_quotes
     };
     let sort_info = format!(
         "{} {}",
-        app.domain.sort_order.header(),
+        app.domain.sort_order.localized_header(cat),
         match app.domain.sort_direction {
             crate::models::SortDirection::Ascending => "▲",
             crate::models::SortDirection::Descending => "▼",
@@ -511,20 +555,20 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
 
     let footer = Line::from(vec![
         Span::styled(" q", Style::default().fg(Color::Yellow)),
-        Span::raw(":quit "),
+        Span::raw(format!(":{} ", cat.footer_quit)),
         Span::styled("h", Style::default().fg(Color::Yellow)),
-        Span::raw(":help "),
+        Span::raw(format!(":{} ", cat.footer_help)),
         Span::styled("s", Style::default().fg(Color::Yellow)),
-        Span::raw(":sort "),
+        Span::raw(format!(":{} ", cat.footer_sort)),
         Span::styled("r", Style::default().fg(Color::Yellow)),
-        Span::raw(":reverse "),
+        Span::raw(format!(":{} ", cat.footer_reverse)),
         Span::styled("H", Style::default().fg(Color::Yellow)),
-        Span::raw(":holdings "),
+        Span::raw(format!(":{} ", cat.footer_holdings)),
         Span::styled("f", Style::default().fg(Color::Yellow)),
-        Span::raw(":fundamentals "),
+        Span::raw(format!(":{} ", cat.footer_fundamentals)),
         Span::raw(format!(
-            "| {} | {} | Iter: {}",
-            mode, sort_info, app.iteration
+            "| {} | {} | {}: {}",
+            mode, sort_info, cat.footer_iter, app.iteration
         )),
     ]);
 
@@ -534,55 +578,57 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
 }
 
 /// Render help overlay.
-fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
+fn render_help_overlay(frame: &mut Frame, locale: AppLocale, colors: &UiColors) {
+    let cat = locale.catalog();
     let area = centered_rect(60, 70, frame.area());
 
     let help_text = vec![
         Line::from(Span::styled(
-            "STONKTOP HELP",
+            cat.help_heading,
             Style::default().add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from("Navigation:"),
-        Line::from("  ↑/k       Move up"),
-        Line::from("  ↓/j       Move down"),
-        Line::from("  g/Home    Go to top"),
-        Line::from("  G/End     Go to bottom"),
-        Line::from("  PgUp      Page up"),
-        Line::from("  PgDn      Page down"),
+        Line::from(cat.help_sec_navigation),
+        Line::from(format!("  ↑/k       {}", cat.help_move_up)),
+        Line::from(format!("  ↓/j       {}", cat.help_move_down)),
+        Line::from(format!("  g/Home    {}", cat.help_go_top)),
+        Line::from(format!("  G/End     {}", cat.help_go_bottom)),
+        Line::from(format!("  PgUp      {}", cat.help_page_up)),
+        Line::from(format!("  PgDn      {}", cat.help_page_down)),
         Line::from(""),
-        Line::from("Sorting:"),
-        Line::from("  s         Cycle sort field"),
-        Line::from("  r         Reverse sort order"),
-        Line::from("  1-7       Sort by column"),
+        Line::from(cat.help_sec_sorting),
+        Line::from(format!("  s         {}", cat.help_cycle_sort)),
+        Line::from(format!("  r         {}", cat.help_reverse_sort)),
+        Line::from(format!("  1-7       {}", cat.help_sort_column)),
         Line::from(""),
-        Line::from("Display:"),
-        Line::from("  H         Toggle holdings view"),
-        Line::from("  f         Toggle fundamentals"),
-        Line::from("  S         Toggle sparklines"),
-        Line::from("  Tab       Cycle groups"),
+        Line::from(cat.help_sec_display),
+        Line::from(format!("  H         {}", cat.help_toggle_holdings)),
+        Line::from(format!("  f         {}", cat.help_toggle_fundamentals)),
+        Line::from(format!("  S         {}", cat.help_toggle_sparklines)),
+        Line::from(format!("  Tab       {}", cat.help_cycle_groups)),
         Line::from(""),
-        Line::from("Symbols:"),
-        Line::from("  a         Add symbol"),
-        Line::from("  d         Remove symbol"),
-        Line::from("  /         Search/filter"),
-        Line::from("  Enter     Quote detail"),
-        Line::from("  e         Export watchlist"),
+        Line::from(cat.help_sec_symbols),
+        Line::from(format!("  a         {}", cat.help_add_symbol)),
+        Line::from(format!("  d         {}", cat.help_remove_symbol)),
+        Line::from(format!("  /         {}", cat.help_search_filter)),
+        Line::from(format!("  Enter     {}", cat.help_quote_detail)),
+        Line::from(format!("  e         {}", cat.help_export_watchlist)),
         Line::from(""),
-        Line::from("Actions:"),
-        Line::from("  Space/R   Force refresh"),
-        Line::from("  q/Esc     Quit"),
-        Line::from("  h/?       Toggle help"),
+        Line::from(cat.help_sec_actions),
+        Line::from(format!("  Space/R   {}", cat.help_force_refresh)),
+        Line::from(format!("  q/Esc     {}", cat.help_quit)),
+        Line::from(format!("  h/?       {}", cat.help_toggle_help)),
         Line::from(""),
-        Line::from("Mouse: click to select, scroll to navigate"),
+        Line::from(cat.help_mouse),
         Line::from(""),
-        Line::from("Press any key to close"),
+        Line::from(cat.press_any_key),
     ];
 
     let help = Paragraph::new(help_text)
+        .alignment(text_alignment(locale))
         .block(
             Block::default()
-                .title(" Help ")
+                .title(cat.help_title)
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(colors.border)),
         )
@@ -593,13 +639,15 @@ fn render_help_overlay(frame: &mut Frame, colors: &UiColors) {
 }
 
 /// Render error message.
-fn render_error(frame: &mut Frame, error: &str, colors: &UiColors) {
+fn render_error(frame: &mut Frame, error: &str, locale: AppLocale, colors: &UiColors) {
+    let cat = locale.catalog();
     let area = centered_rect(50, 20, frame.area());
 
     let error_widget = Paragraph::new(error)
+        .alignment(text_alignment(locale))
         .block(
             Block::default()
-                .title(" Error ")
+                .title(cat.popup_error_title)
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(colors.loss)),
         )
@@ -709,12 +757,13 @@ fn range_bar(low: f64, high: f64, current: f64, width: usize) -> String {
 
 /// Render detail popup for the selected quote.
 fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
+    let cat = app.ui.locale.catalog();
     if let Some(quote) = app.selected_quote() {
         let area = centered_rect(65, 75, frame.area());
 
         let fmt_or_na = |v: f64| -> String {
             if v == 0.0 {
-                "N/A".to_string()
+                cat.not_available.to_string()
             } else {
                 format_price(v)
             }
@@ -729,13 +778,13 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
         let day_range_bar = if quote.day_low > 0.0 && quote.day_high > 0.0 {
             range_bar(quote.day_low, quote.day_high, quote.price, 20)
         } else {
-            "N/A".to_string()
+            cat.not_available.to_string()
         };
 
         let year_range_bar = if quote.year_low > 0.0 && quote.year_high > 0.0 {
             range_bar(quote.year_low, quote.year_high, quote.price, 20)
         } else {
-            "N/A".to_string()
+            cat.not_available.to_string()
         };
 
         let mut detail_text = vec![
@@ -745,7 +794,11 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
             )),
             Line::from(""),
             Line::from(vec![
-                Span::raw(format!("  Price:          {}", format_price(quote.price))),
+                Span::raw(format!(
+                    "  {:<15} {}",
+                    format!("{}:", cat.detail_price),
+                    format_price(quote.price)
+                )),
                 Span::raw("  "),
                 Span::styled(
                     format!("{:+.2} ({:+.2}%)", quote.change, quote.change_percent),
@@ -753,40 +806,70 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
                 ),
             ]),
             Line::from(format!(
-                "  Prev Close:     {}",
+                "  {:<15} {}",
+                format!("{}:", cat.detail_prev_close),
                 fmt_or_na(quote.previous_close)
             )),
-            Line::from(format!("  Open:           {}", fmt_or_na(quote.open))),
+            Line::from(format!(
+                "  {:<15} {}",
+                format!("{}:", cat.detail_open),
+                fmt_or_na(quote.open)
+            )),
             Line::from(""),
             Line::from(format!(
-                "  Day Range:      {} - {}",
+                "  {:<15} {} - {}",
+                format!("{}:", cat.detail_day_range),
                 fmt_or_na(quote.day_low),
                 fmt_or_na(quote.day_high)
             )),
             Line::from(format!("                  {}", day_range_bar)),
             Line::from(""),
             Line::from(format!(
-                "  52w Range:      {} - {}",
+                "  {:<15} {} - {}",
+                format!("{}:", cat.detail_52w_range),
                 fmt_or_na(quote.year_low),
                 fmt_or_na(quote.year_high)
             )),
             Line::from(format!("                  {}", year_range_bar)),
             Line::from(""),
-            Line::from(format!("  Volume:         {}", format_volume(quote.volume))),
             Line::from(format!(
-                "  Avg Volume:     {}",
+                "  {:<15} {}",
+                format!("{}:", cat.detail_volume),
+                format_volume(quote.volume)
+            )),
+            Line::from(format!(
+                "  {:<15} {}",
+                format!("{}:", cat.detail_avg_volume),
                 format_volume(quote.avg_volume)
             )),
             Line::from(format!(
-                "  Market Cap:     {}",
+                "  {:<15} {}",
+                format!("{}:", cat.detail_market_cap),
                 format_market_cap(quote.market_cap)
             )),
-            Line::from(format!("  Exchange:       {}", quote.exchange)),
-            Line::from(format!("  Currency:       {}", quote.currency)),
-            Line::from(format!("  Type:           {}", quote.quote_type)),
-            Line::from(format!("  Market:         {}", quote.market_state)),
             Line::from(format!(
-                "  Timestamp:      {}",
+                "  {:<15} {}",
+                format!("{}:", cat.detail_exchange),
+                quote.exchange
+            )),
+            Line::from(format!(
+                "  {:<15} {}",
+                format!("{}:", cat.detail_currency),
+                quote.currency
+            )),
+            Line::from(format!(
+                "  {:<15} {}",
+                format!("{}:", cat.detail_type),
+                quote.quote_type.localized(cat)
+            )),
+            Line::from(format!(
+                "  {:<15} {}",
+                format!("{}:", cat.detail_market),
+                quote.market_state.localized(cat)
+            )),
+            Line::from(format!(
+                "  {:<15} {}",
+                format!("{}:", cat.detail_timestamp),
                 quote.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
             )),
         ];
@@ -797,8 +880,9 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
                 if let Some((min, max)) = history.min_max() {
                     detail_text.push(Line::from(""));
                     detail_text.push(Line::from(format!(
-                        "  Price History:  {} pts ({:.2} - {:.2})",
-                        history.len(),
+                        "  {:<15} {} ({:.2} - {:.2})",
+                        format!("{}:", cat.detail_price_history),
+                        fmt1(cat.detail_points, "count", &history.len().to_string()),
                         min,
                         max
                     )));
@@ -810,7 +894,8 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
         if app.domain.currency_convert && quote.currency != app.domain.display_currency {
             let converted = app.convert_price(quote.price, &quote.currency);
             detail_text.push(Line::from(format!(
-                "  Converted:      {}{:.2} {}",
+                "  {:<15} {}{:.2} {}",
+                format!("{}:", cat.detail_converted),
                 app.currency_symbol(),
                 converted,
                 app.domain.display_currency
@@ -818,12 +903,13 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
         }
 
         detail_text.push(Line::from(""));
-        detail_text.push(Line::from("  Press any key to close"));
+        detail_text.push(Line::from(format!("  {}", cat.press_any_key)));
 
         let detail = Paragraph::new(detail_text)
+            .alignment(text_alignment(app.ui.locale))
             .block(
                 Block::default()
-                    .title(" Quote Detail ")
+                    .title(cat.popup_detail_title)
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(colors.border)),
             )
@@ -836,6 +922,7 @@ fn render_detail(frame: &mut Frame, app: &App, colors: &UiColors) {
 
 /// Render triggered alerts as a notification bar.
 fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
+    let cat = app.ui.locale.catalog();
     let area = centered_rect(50, 20, frame.area());
     let text: Vec<Line> = app
         .domain
@@ -850,9 +937,10 @@ fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
         .collect();
 
     let alert_widget = Paragraph::new(text)
+        .alignment(text_alignment(app.ui.locale))
         .block(
             Block::default()
-                .title(" Price Alerts ")
+                .title(cat.popup_alerts_title)
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::Yellow)),
         )
@@ -865,6 +953,7 @@ fn render_alerts(frame: &mut Frame, app: &App, colors: &UiColors) {
 
 /// Render sparkline charts sidebar.
 fn render_sparklines(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors) {
+    let cat = app.ui.locale.catalog();
     let filtered = app.visible_quotes();
     let visible: Vec<_> = filtered.iter().skip(app.ui.scroll_offset).collect();
 
@@ -882,7 +971,7 @@ fn render_sparklines(frame: &mut Frame, app: &App, area: Rect, colors: &UiColors
 
     // Header
     let header = Paragraph::new(Span::styled(
-        " TREND",
+        format!(" {}", cat.col_trend),
         Style::default()
             .fg(Color::White)
             .add_modifier(Modifier::BOLD),
@@ -924,6 +1013,7 @@ pub fn render_batch(app: &App, format: &crate::cli::OutputFormat) {
 /// Batch output as a classic table.
 fn render_batch_table(app: &App) {
     use chrono::Local;
+    let cat = app.ui.locale.catalog();
 
     println!(
         "\n=== STONKTOP {} ===",
@@ -933,7 +1023,14 @@ fn render_batch_table(app: &App) {
     if app.ui.show_holdings {
         println!(
             "{:<10} {:<15} {:>10} {:>10} {:>12} {:>12} {:>10} {:>10}",
-            "SYMBOL", "NAME", "PRICE", "QTY", "VALUE", "COST", "P/L", "P/L%"
+            cat.col_symbol,
+            cat.col_name,
+            cat.col_price,
+            cat.col_qty,
+            cat.col_value,
+            cat.col_cost,
+            cat.col_pnl,
+            cat.col_pnl_pct
         );
         println!("{}", "-".repeat(100));
 
@@ -960,7 +1057,13 @@ fn render_batch_table(app: &App) {
     } else {
         println!(
             "{:<10} {:<20} {:>12} {:>10} {:>10} {:>12} {:>12}",
-            "SYMBOL", "NAME", "PRICE", "CHANGE", "CHG%", "VOLUME", "MKT CAP"
+            cat.col_symbol,
+            cat.col_name,
+            cat.col_price,
+            cat.col_change,
+            cat.col_chg_pct,
+            cat.col_volume,
+            cat.col_mkt_cap
         );
         println!("{}", "-".repeat(90));
 
@@ -981,11 +1084,12 @@ fn render_batch_table(app: &App) {
     println!();
 }
 
-/// Batch output as JSON — for the pipeline-minded.
+/// Batch output as JSON for programmatic pipelines.
 fn render_batch_json(app: &App) {
+    let cat = app.ui.locale.catalog();
     match serde_json::to_string_pretty(&app.domain.quotes) {
         Ok(json) => println!("{}", json),
-        Err(e) => eprintln!("JSON serialization error: {}", e),
+        Err(e) => eprintln!("{}", fmt1(cat.err_json_serialize, "error", &e.to_string())),
     }
 }
 
@@ -1223,5 +1327,17 @@ mod tests {
         assert_eq!(chars[0], '├');
         assert_eq!(chars[9], '┤');
         assert_eq!(chars[8], '●');
+    }
+
+    #[test]
+    fn test_text_alignment_rtl_and_ltr() {
+        for locale in AppLocale::ALL {
+            let expected = if locale.is_rtl() {
+                Alignment::Right
+            } else {
+                Alignment::Left
+            };
+            assert_eq!(text_alignment(locale), expected);
+        }
     }
 }

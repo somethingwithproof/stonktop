@@ -13,6 +13,7 @@ mod api;
 mod app;
 mod cli;
 mod config;
+mod i18n;
 mod models;
 mod ui;
 
@@ -25,6 +26,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use i18n::{fmt1, Locale};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use std::time::Duration;
@@ -33,6 +35,8 @@ use std::time::Duration;
 async fn main() -> Result<()> {
     // Parse command line arguments
     let args = Args::parse_args();
+    let locale = Locale::resolve(args.lang.as_deref());
+    let cat = locale.catalog();
 
     // Load configuration
     let config = if let Some(ref path) = args.config {
@@ -44,11 +48,14 @@ async fn main() -> Result<()> {
     // Handle --init flag
     if args.init {
         let path = Config::default_config_path()
-            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
+            .ok_or_else(|| anyhow::anyhow!("{}", cat.err_config_dir))?;
 
         if path.exists() && !args.force {
-            eprintln!("Config file already exists: {}", path.display());
-            eprintln!("Use --force to overwrite.");
+            eprintln!(
+                "{}",
+                fmt1(cat.err_config_exists, "path", &path.display().to_string())
+            );
+            eprintln!("{}", cat.err_use_force);
             std::process::exit(1);
         }
 
@@ -56,7 +63,10 @@ async fn main() -> Result<()> {
             tokio::fs::create_dir_all(parent).await?;
         }
         tokio::fs::write(&path, config::sample_config()).await?;
-        println!("Config file written to: {}", path.display());
+        println!(
+            "{}",
+            fmt1(cat.msg_config_written, "path", &path.display().to_string())
+        );
         std::process::exit(0);
     }
 
@@ -65,17 +75,21 @@ async fn main() -> Result<()> {
 
     // Check if we have any symbols to watch
     if app.domain.symbols.is_empty() {
-        eprintln!("Error: No symbols to watch.");
-        eprintln!("Provide symbols via -s flag or config file.");
+        eprintln!("{}", cat.err_no_symbols);
+        eprintln!("{}", cat.err_provide_symbols);
         eprintln!();
-        eprintln!("Example: stonktop -s AAPL,GOOGL,BTC-USD");
+        eprintln!("{}", cat.msg_example_usage);
         eprintln!();
         eprintln!(
-            "Or create a config file at {:?}",
-            Config::default_config_path()
+            "{}",
+            fmt1(
+                cat.msg_create_config_at,
+                "path",
+                &format!("{:?}", Config::default_config_path())
+            )
         );
         eprintln!();
-        eprintln!("Sample config:");
+        eprintln!("{}", cat.msg_sample_config);
         eprintln!("{}", config::sample_config());
         std::process::exit(1);
     }
@@ -132,7 +146,8 @@ async fn run_interactive(app: &mut App) -> Result<()> {
 
     // Save watchlist if symbols were modified
     if let Err(e) = app.save_watchlist() {
-        eprintln!("Warning: could not save watchlist: {}", e);
+        let cat = app.ui.locale.catalog();
+        eprintln!("{}", fmt1(cat.warn_save_watchlist, "error", &e.to_string()));
     }
 
     // Restore terminal
