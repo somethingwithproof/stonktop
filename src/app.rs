@@ -8,6 +8,7 @@
 use crate::api::{expand_symbol_with, CachingQuoteProvider, YahooFinanceClient};
 use crate::cli::Args;
 use crate::config::Config;
+use crate::i18n::{fmt1, fmt3, Locale};
 use crate::models::{Alert, Holding, PriceHistory, Quote, QuoteProvider, SortDirection, SortOrder};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
@@ -185,6 +186,7 @@ pub struct UiState {
     pub verbose: bool,
     pub batch_mode: bool,
     pub secure_mode: bool,
+    pub locale: Locale,
 }
 
 /// Domain / watchlist state (core data, independent of presentation).
@@ -351,6 +353,7 @@ impl App {
                 verbose: args.verbose,
                 batch_mode: args.batch,
                 secure_mode: args.secure,
+                locale: Locale::resolve(args.lang.as_deref()),
             },
             domain: DomainState {
                 quotes: Vec::new(),
@@ -426,14 +429,17 @@ impl App {
                 if self.domain.failed_symbols.is_empty() {
                     self.error = None;
                 } else {
-                    self.error = Some(format!(
-                        "Partial: {} symbols failed",
-                        self.domain.failed_symbols.len()
+                    let cat = self.ui.locale.catalog();
+                    self.error = Some(fmt1(
+                        cat.err_partial_failed,
+                        "count",
+                        &self.domain.failed_symbols.len().to_string(),
                     ));
                 }
             }
             Err(e) => {
-                self.error = Some(format!("API Error: {}", e));
+                let cat = self.ui.locale.catalog();
+                self.error = Some(fmt1(cat.err_api, "error", &e.to_string()));
             }
         }
 
@@ -672,6 +678,16 @@ impl App {
             .map_or("All", |s| s.as_str())
     }
 
+    /// Get the localized display label for the active group.
+    #[allow(dead_code)]
+    pub fn active_group_display_name(&self) -> &str {
+        if self.domain.active_group == 0 {
+            self.ui.locale.catalog().group_all
+        } else {
+            self.active_group_name()
+        }
+    }
+
     /// Aggregate market status across current quotes (first-class per arch rec).
     /// Uses parsed MarketState from Yahoo responses.
     pub fn any_markets_open(&self) -> bool {
@@ -686,22 +702,43 @@ impl App {
 
     /// Check price alerts and record any that trigger.
     fn check_alerts(&mut self) {
+        let cat = self.ui.locale.catalog();
         self.domain.triggered_alerts.clear();
         for alert in &self.domain.alerts {
             if let Some(quote) = self.domain.quotes.iter().find(|q| q.symbol == alert.symbol) {
                 if let Some(above) = alert.above {
                     if quote.price >= above {
+                        let threshold = format!("{above:.2}");
+                        let price = format!("{:.2}", quote.price);
                         self.domain.triggered_alerts.push((
                             alert.symbol.clone(),
-                            format!("{} above ${:.2} (${:.2})", alert.symbol, above, quote.price),
+                            fmt3(
+                                cat.alert_above,
+                                "symbol",
+                                &alert.symbol,
+                                "threshold",
+                                &threshold,
+                                "price",
+                                &price,
+                            ),
                         ));
                     }
                 }
                 if let Some(below) = alert.below {
                     if quote.price <= below {
+                        let threshold = format!("{below:.2}");
+                        let price = format!("{:.2}", quote.price);
                         self.domain.triggered_alerts.push((
                             alert.symbol.clone(),
-                            format!("{} below ${:.2} (${:.2})", alert.symbol, below, quote.price),
+                            fmt3(
+                                cat.alert_below,
+                                "symbol",
+                                &alert.symbol,
+                                "threshold",
+                                &threshold,
+                                "price",
+                                &price,
+                            ),
                         ));
                     }
                 }
@@ -734,9 +771,10 @@ impl App {
         if !self.domain.notifications_enabled {
             return;
         }
+        let cat = self.ui.locale.catalog();
         for (symbol, message) in &self.domain.triggered_alerts {
             let _ = notify_rust::Notification::new()
-                .summary(&format!("Stonktop Alert: {}", symbol))
+                .summary(&fmt1(cat.alert_title, "symbol", symbol))
                 .body(message)
                 .timeout(notify_rust::Timeout::Milliseconds(5000))
                 .show();
@@ -856,16 +894,17 @@ impl App {
 
     /// Get time since last refresh as human readable string.
     pub fn time_since_refresh(&self) -> String {
+        let cat = self.ui.locale.catalog();
         match self.last_refresh {
             Some(t) => {
                 let elapsed = t.elapsed().as_secs();
                 if elapsed < 60 {
-                    format!("{}s ago", elapsed)
+                    fmt1(cat.time_seconds_ago, "n", &elapsed.to_string())
                 } else {
-                    format!("{}m ago", elapsed / 60)
+                    fmt1(cat.time_minutes_ago, "n", &(elapsed / 60).to_string())
                 }
             }
-            None => "never".to_string(),
+            None => cat.time_never.to_string(),
         }
     }
 
@@ -984,7 +1023,8 @@ impl App {
                     .unwrap_or_else(|| std::path::PathBuf::from("."))
                     .join("stonktop_export.json");
                 if let Err(e) = self.export_watchlist(&path) {
-                    self.error = Some(format!("Export failed: {}", e));
+                    let cat = self.ui.locale.catalog();
+                    self.error = Some(fmt1(cat.err_export_failed, "error", &e.to_string()));
                 }
             }
             KeyCommand::NextGroup => {
@@ -2249,5 +2289,137 @@ mod tests {
         // Methods delegate correctly (visible uses both)
         let vis = app.visible_quotes();
         assert_eq!(vis.len(), 2);
+    }
+
+    #[test]
+    fn test_active_group_display_name_localized() {
+        let mut app = test_app();
+        app.domain.groups.push("tech".to_string());
+        app.domain
+            .group_symbols
+            .push(vec!["AAPL".to_string(), "GOOGL".to_string()]);
+
+        app.ui.locale = Locale::En;
+        assert_eq!(
+            app.active_group_display_name(),
+            Locale::En.catalog().group_all
+        );
+
+        app.ui.locale = Locale::De;
+        assert_eq!(
+            app.active_group_display_name(),
+            Locale::De.catalog().group_all
+        );
+
+        app.domain.active_group = 1;
+        assert_eq!(app.active_group_display_name(), "tech");
+    }
+
+    #[test]
+    fn test_time_since_refresh_localized() {
+        let mut app = test_app();
+        app.ui.locale = Locale::De;
+        app.last_refresh = None;
+        assert_eq!(app.time_since_refresh(), Locale::De.catalog().time_never);
+
+        app.last_refresh = Some(Instant::now());
+        let secs = app.time_since_refresh();
+        assert!(secs.contains('0'));
+
+        if let Some(two_mins_ago) = Instant::now().checked_sub(Duration::from_secs(125)) {
+            app.last_refresh = Some(two_mins_ago);
+            let mins = app.time_since_refresh();
+            assert_eq!(mins, fmt1(Locale::De.catalog().time_minutes_ago, "n", "2"));
+        }
+    }
+
+    #[test]
+    fn test_check_alerts_localized_above_and_below() {
+        let mut app = test_app();
+        app.ui.locale = Locale::De;
+        app.domain.notifications_enabled = false;
+        app.domain.alerts = vec![
+            Alert {
+                symbol: "AAPL".to_string(),
+                above: Some(190.0),
+                below: None,
+            },
+            Alert {
+                symbol: "GOOGL".to_string(),
+                above: None,
+                below: Some(150.0),
+            },
+        ];
+        app.check_alerts();
+        assert_eq!(app.domain.triggered_alerts.len(), 2);
+        let cat = Locale::De.catalog();
+        assert_eq!(
+            app.domain.triggered_alerts[0].1,
+            fmt3(
+                cat.alert_above,
+                "symbol",
+                "AAPL",
+                "threshold",
+                "190.00",
+                "price",
+                "195.00"
+            )
+        );
+        assert_eq!(
+            app.domain.triggered_alerts[1].1,
+            fmt3(
+                cat.alert_below,
+                "symbol",
+                "GOOGL",
+                "threshold",
+                "150.00",
+                "price",
+                "140.00"
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_partial_failure_and_api_error_localized() {
+        struct PartialProvider;
+        #[async_trait::async_trait]
+        impl QuoteProvider for PartialProvider {
+            async fn get_quotes(&self, _symbols: &[String]) -> Result<Vec<Quote>> {
+                Ok(vec![Quote {
+                    symbol: "AAPL".into(),
+                    price: 195.0,
+                    ..Quote::default()
+                }])
+            }
+        }
+
+        struct FailingProvider;
+        #[async_trait::async_trait]
+        impl QuoteProvider for FailingProvider {
+            async fn get_quotes(&self, _symbols: &[String]) -> Result<Vec<Quote>> {
+                anyhow::bail!("mock boom")
+            }
+        }
+
+        let args = Args::parse_from(["stonktop", "-s", "AAPL,GOOGL", "--lang", "de"]);
+        let config = Config::default();
+
+        let mut app_partial =
+            App::with_provider(&args, &config, Box::new(PartialProvider)).unwrap();
+        app_partial.domain.notifications_enabled = false;
+        app_partial.refresh().await.unwrap();
+        assert_eq!(app_partial.domain.failed_symbols, vec!["GOOGL"]);
+        assert_eq!(
+            app_partial.error.as_deref(),
+            Some(fmt1(Locale::De.catalog().err_partial_failed, "count", "1").as_str())
+        );
+
+        let mut app_err = App::with_provider(&args, &config, Box::new(FailingProvider)).unwrap();
+        app_err.domain.notifications_enabled = false;
+        app_err.refresh().await.unwrap();
+        assert_eq!(
+            app_err.error.as_deref(),
+            Some(fmt1(Locale::De.catalog().err_api, "error", "mock boom").as_str())
+        );
     }
 }

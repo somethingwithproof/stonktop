@@ -5,15 +5,20 @@
 //!
 //! All the flags you need to customize your financial anxiety experience.
 
-use clap::{Parser, ValueEnum};
+use crate::i18n::Locale;
+use clap::{CommandFactory, FromArgMatches, Parser, ValueEnum};
 use std::path::PathBuf;
 
-fn parse_positive_f64(s: &str) -> Result<f64, String> {
+fn parse_positive_f64_with_locale(s: &str, locale: Locale) -> Result<f64, String> {
     let val: f64 = s.parse().map_err(|e| format!("{e}"))?;
     if !val.is_finite() || val <= 0.0 {
-        return Err("delay must be a positive number".to_string());
+        return Err(locale.catalog().err_delay_positive.to_string());
     }
     Ok(val)
+}
+
+fn parse_positive_f64(s: &str) -> Result<f64, String> {
+    parse_positive_f64_with_locale(s, Locale::detect())
 }
 
 /// A top-like terminal UI for monitoring stock and cryptocurrency prices.
@@ -96,6 +101,10 @@ pub struct Args {
     /// Force overwrite existing config file (use with --init)
     #[arg(long)]
     pub force: bool,
+
+    /// Display language (e.g. en, de, ja, zh-CN, pt-BR)
+    #[arg(long, env = "STONKTOP_LANG")]
+    pub lang: Option<String>,
 }
 
 /// Sort field options (similar to top's sort fields).
@@ -157,10 +166,47 @@ pub enum OutputFormat {
 }
 
 impl Args {
-    /// Parse command line arguments.
+    /// Build a clap command with localized help text for the active locale.
+    #[allow(dead_code)]
+    pub fn localized_command(locale: Locale) -> clap::Command {
+        let cat = locale.catalog();
+        Args::command()
+            .about(cat.cli_about)
+            .mut_arg("symbols", |a| a.help(cat.cli_opt_symbols).long_help(None))
+            .mut_arg("delay", |a| {
+                a.help(cat.cli_opt_delay)
+                    .value_parser(move |s: &str| parse_positive_f64_with_locale(s, locale))
+            })
+            .mut_arg("iterations", |a| {
+                a.help(cat.cli_opt_iterations).long_help(None)
+            })
+            .mut_arg("batch", |a| a.help(cat.cli_opt_batch))
+            .mut_arg("secure", |a| a.help(cat.cli_opt_secure))
+            .mut_arg("config", |a| a.help(cat.cli_opt_config))
+            .mut_arg("sort", |a| a.help(cat.cli_opt_sort))
+            .mut_arg("reverse", |a| a.help(cat.cli_opt_reverse))
+            .mut_arg("holdings", |a| a.help(cat.cli_opt_holdings))
+            .mut_arg("currency", |a| a.help(cat.cli_opt_currency))
+            .mut_arg("color", |a| a.help(cat.cli_opt_color))
+            .mut_arg("verbose", |a| a.help(cat.cli_opt_verbose))
+            .mut_arg("timeout", |a| a.help(cat.cli_opt_timeout))
+            .mut_arg("format", |a| a.help(cat.cli_opt_format))
+            .mut_arg("init", |a| a.help(cat.cli_opt_init))
+            .mut_arg("force", |a| a.help(cat.cli_opt_force))
+            .mut_arg("lang", |a| a.help(cat.cli_opt_lang))
+    }
+
+    /// Parse command line arguments with localized help text.
     /// Where your journey to financial enlightenment begins.
+    #[allow(dead_code)]
     pub fn parse_args() -> Self {
-        Args::parse()
+        let raw_args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+        let locale = Locale::resolve(crate::i18n::extract_cli_lang_os(&raw_args).as_deref());
+        let matches = Self::localized_command(locale).get_matches_from(raw_args);
+        match Self::from_arg_matches(&matches) {
+            Ok(args) => args,
+            Err(err) => err.exit(),
+        }
     }
 
     // use_colors and atty_check were removed; color mode is wired via App.ui.color_mode and UiColors::for_app.
@@ -197,5 +243,81 @@ mod tests {
         let args = Args::parse_from(["stonktop", "-d", "2.5", "-n", "10"]);
         assert_eq!(args.delay, 2.5);
         assert_eq!(args.iterations, 10);
+    }
+
+    #[test]
+    fn test_localized_help_german_no_english_leak() {
+        let cat = Locale::De.catalog();
+        let err = Args::localized_command(Locale::De)
+            .try_get_matches_from(["stonktop", "--lang", "de", "--help"])
+            .unwrap_err();
+        let rendered = err.to_string();
+        assert!(rendered.contains(cat.cli_about));
+        assert!(rendered.contains(cat.cli_opt_symbols));
+        assert!(rendered.contains(cat.cli_opt_iterations));
+        assert!(rendered.contains(cat.cli_opt_delay));
+        // Derived doc-comment long_help paragraphs must not leak in English.
+        assert!(
+            !rendered.contains("Examples: AAPL,GOOGL,MSFT"),
+            "English long_help leaked for symbols:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains("Shortcuts: BTC.X"),
+            "English long_help leaked for symbols:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains("0 means infinite"),
+            "English long_help leaked for iterations:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn test_localized_delay_error_german() {
+        let cat = Locale::De.catalog();
+        let err = Args::localized_command(Locale::De)
+            .try_get_matches_from(["stonktop", "--lang", "de", "--delay", "0"])
+            .unwrap_err();
+        let rendered = err.to_string();
+        assert!(
+            rendered.contains(cat.err_delay_positive),
+            "expected German delay error {:?}, got:\n{rendered}",
+            cat.err_delay_positive
+        );
+
+        let err_neg = Args::localized_command(Locale::De)
+            .try_get_matches_from(["stonktop", "--lang", "de", "--delay=-2"])
+            .unwrap_err();
+        assert!(err_neg.to_string().contains(cat.err_delay_positive));
+
+        let matches = Args::localized_command(Locale::De)
+            .try_get_matches_from(["stonktop", "--lang", "de", "--delay", "3.5"])
+            .unwrap();
+        let args = Args::from_arg_matches(&matches).unwrap();
+        assert!((args.delay - 3.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_positive_f64_variants() {
+        assert_eq!(parse_positive_f64("2.5"), Ok(2.5));
+        assert!(parse_positive_f64("0").is_err());
+        assert!(parse_positive_f64("-1").is_err());
+        assert!(parse_positive_f64("NaN").is_err());
+        assert!(parse_positive_f64("inf").is_err());
+        assert!(parse_positive_f64("abc").is_err());
+    }
+
+    #[test]
+    fn test_sort_field_into_sort_order() {
+        use crate::models::SortOrder;
+        assert_eq!(SortOrder::from(SortField::Symbol), SortOrder::Symbol);
+        assert_eq!(SortOrder::from(SortField::Name), SortOrder::Name);
+        assert_eq!(SortOrder::from(SortField::Price), SortOrder::Price);
+        assert_eq!(SortOrder::from(SortField::Change), SortOrder::Change);
+        assert_eq!(
+            SortOrder::from(SortField::ChangePercent),
+            SortOrder::ChangePercent
+        );
+        assert_eq!(SortOrder::from(SortField::Volume), SortOrder::Volume);
+        assert_eq!(SortOrder::from(SortField::MarketCap), SortOrder::MarketCap);
     }
 }

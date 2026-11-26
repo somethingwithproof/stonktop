@@ -97,6 +97,23 @@ pub enum QuoteType {
     Option,
 }
 
+impl QuoteType {
+    /// Return the localized label for this quote type.
+    #[allow(dead_code)]
+    pub const fn localized(self, cat: &crate::i18n::Catalog) -> &'static str {
+        match self {
+            QuoteType::Equity => cat.quote_type_stock,
+            QuoteType::Cryptocurrency => cat.quote_type_crypto,
+            QuoteType::Etf => cat.quote_type_etf,
+            QuoteType::MutualFund => cat.quote_type_fund,
+            QuoteType::Index => cat.quote_type_index,
+            QuoteType::Currency => cat.quote_type_forex,
+            QuoteType::Future => cat.quote_type_future,
+            QuoteType::Option => cat.quote_type_option,
+        }
+    }
+}
+
 impl std::fmt::Display for QuoteType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -120,6 +137,19 @@ pub enum MarketState {
     Post,
     #[default]
     Closed,
+}
+
+impl MarketState {
+    /// Return the localized label for this market state.
+    #[allow(dead_code)]
+    pub const fn localized(self, cat: &crate::i18n::Catalog) -> &'static str {
+        match self {
+            MarketState::Pre => cat.market_state_pre,
+            MarketState::Regular => cat.market_state_open,
+            MarketState::Post => cat.market_state_post,
+            MarketState::Closed => cat.market_state_closed,
+        }
+    }
 }
 
 impl std::fmt::Display for MarketState {
@@ -198,6 +228,7 @@ impl SortOrder {
     }
 
     /// Get column header name.
+    #[allow(dead_code)]
     pub fn header(&self) -> &'static str {
         match self {
             SortOrder::Symbol => "SYMBOL",
@@ -207,6 +238,20 @@ impl SortOrder {
             SortOrder::ChangePercent => "CHG%",
             SortOrder::Volume => "VOLUME",
             SortOrder::MarketCap => "MKT CAP",
+        }
+    }
+
+    /// Get localized column header name.
+    #[allow(dead_code)]
+    pub const fn localized_header(self, cat: &crate::i18n::Catalog) -> &'static str {
+        match self {
+            SortOrder::Symbol => cat.col_symbol,
+            SortOrder::Name => cat.col_name,
+            SortOrder::Price => cat.col_price,
+            SortOrder::Change => cat.col_change,
+            SortOrder::ChangePercent => cat.col_chg_pct,
+            SortOrder::Volume => cat.col_volume,
+            SortOrder::MarketCap => cat.col_mkt_cap,
         }
     }
 }
@@ -497,21 +542,95 @@ mod tests {
     #[test]
     fn test_sort_order_header() {
         assert_eq!(SortOrder::Symbol.header(), "SYMBOL");
+        assert_eq!(SortOrder::Name.header(), "NAME");
         assert_eq!(SortOrder::Price.header(), "PRICE");
+        assert_eq!(SortOrder::Change.header(), "CHANGE");
+        assert_eq!(SortOrder::ChangePercent.header(), "CHG%");
+        assert_eq!(SortOrder::Volume.header(), "VOLUME");
         assert_eq!(SortOrder::MarketCap.header(), "MKT CAP");
     }
 
-    // --- QuoteType Display tests ---
+    #[test]
+    fn test_sort_order_localized_header() {
+        use crate::i18n::Locale;
+        let variants = [
+            SortOrder::Symbol,
+            SortOrder::Name,
+            SortOrder::Price,
+            SortOrder::Change,
+            SortOrder::ChangePercent,
+            SortOrder::Volume,
+            SortOrder::MarketCap,
+        ];
+        for locale in [Locale::En, Locale::De, Locale::Ar] {
+            let cat = locale.catalog();
+            assert_eq!(SortOrder::Symbol.localized_header(cat), cat.col_symbol);
+            assert_eq!(SortOrder::Name.localized_header(cat), cat.col_name);
+            assert_eq!(SortOrder::Price.localized_header(cat), cat.col_price);
+            assert_eq!(SortOrder::Change.localized_header(cat), cat.col_change);
+            assert_eq!(
+                SortOrder::ChangePercent.localized_header(cat),
+                cat.col_chg_pct
+            );
+            assert_eq!(SortOrder::Volume.localized_header(cat), cat.col_volume);
+            assert_eq!(SortOrder::MarketCap.localized_header(cat), cat.col_mkt_cap);
+            for variant in variants {
+                assert_ne!(variant.localized_header(cat), "");
+            }
+        }
+    }
+
+    // --- QuoteType Display & localized tests ---
 
     #[test]
     fn test_quote_type_display() {
         assert_eq!(format!("{}", QuoteType::Equity), "Stock");
         assert_eq!(format!("{}", QuoteType::Cryptocurrency), "Crypto");
         assert_eq!(format!("{}", QuoteType::Etf), "ETF");
+        assert_eq!(format!("{}", QuoteType::MutualFund), "Fund");
+        assert_eq!(format!("{}", QuoteType::Index), "Index");
         assert_eq!(format!("{}", QuoteType::Currency), "Forex");
+        assert_eq!(format!("{}", QuoteType::Future), "Future");
+        assert_eq!(format!("{}", QuoteType::Option), "Option");
     }
 
-    // --- MarketState Display tests ---
+    #[test]
+    fn test_quote_type_localized() {
+        use crate::i18n::Locale;
+        let variants = [
+            QuoteType::Equity,
+            QuoteType::Cryptocurrency,
+            QuoteType::Etf,
+            QuoteType::MutualFund,
+            QuoteType::Index,
+            QuoteType::Currency,
+            QuoteType::Future,
+            QuoteType::Option,
+        ];
+        for locale in [Locale::En, Locale::De, Locale::Ar] {
+            let cat = locale.catalog();
+            assert_eq!(QuoteType::Equity.localized(cat), cat.quote_type_stock);
+            assert_eq!(
+                QuoteType::Cryptocurrency.localized(cat),
+                cat.quote_type_crypto
+            );
+            assert_eq!(QuoteType::Etf.localized(cat), cat.quote_type_etf);
+            assert_eq!(QuoteType::MutualFund.localized(cat), cat.quote_type_fund);
+            assert_eq!(QuoteType::Index.localized(cat), cat.quote_type_index);
+            assert_eq!(QuoteType::Currency.localized(cat), cat.quote_type_forex);
+            assert_eq!(QuoteType::Future.localized(cat), cat.quote_type_future);
+            assert_eq!(QuoteType::Option.localized(cat), cat.quote_type_option);
+            for variant in variants {
+                assert_ne!(variant.localized(cat), "");
+            }
+        }
+        assert_eq!(
+            QuoteType::Equity.localized(Locale::En.catalog()),
+            format!("{}", QuoteType::Equity)
+        );
+    }
+
+    // --- MarketState Display & localized tests ---
 
     #[test]
     fn test_market_state_display() {
@@ -519,6 +638,31 @@ mod tests {
         assert_eq!(format!("{}", MarketState::Closed), "Closed");
         assert_eq!(format!("{}", MarketState::Pre), "Pre");
         assert_eq!(format!("{}", MarketState::Post), "Post");
+    }
+
+    #[test]
+    fn test_market_state_localized() {
+        use crate::i18n::Locale;
+        let variants = [
+            MarketState::Pre,
+            MarketState::Regular,
+            MarketState::Post,
+            MarketState::Closed,
+        ];
+        for locale in [Locale::En, Locale::De, Locale::Ar] {
+            let cat = locale.catalog();
+            assert_eq!(MarketState::Pre.localized(cat), cat.market_state_pre);
+            assert_eq!(MarketState::Regular.localized(cat), cat.market_state_open);
+            assert_eq!(MarketState::Post.localized(cat), cat.market_state_post);
+            assert_eq!(MarketState::Closed.localized(cat), cat.market_state_closed);
+            for variant in variants {
+                assert_ne!(variant.localized(cat), "");
+            }
+        }
+        assert_eq!(
+            MarketState::Regular.localized(Locale::En.catalog()),
+            format!("{}", MarketState::Regular)
+        );
     }
 
     // --- Holding tests ---
